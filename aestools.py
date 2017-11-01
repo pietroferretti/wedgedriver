@@ -22,9 +22,42 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+
 def xor_str(s1, s2):
     '''XOR between two strings. The longer one is truncated.'''
     return ''.join(chr(ord(x) ^ ord(y)) for x, y in zip(s1, s2))
+
+
+def blockify(text, blocklen):
+    '''Splits the text as a list of blocklen-long strings'''
+    return [text[i:i+blocklen] for i in xrange(0, len(text), blocklen)]
+
+
+def cbc_findiv(decfunc, blocklen=16, ciphblock=None):
+    '''Finds the IV used during an AES CBC decryption if it's not included in the ciphertext.
+    
+    This is useful if the IV is fixed but unknown, or even better if the IV is used as key.
+
+    Arguments:
+        decfunc   -- a decryption oracle function. The function must take a ciphertext (without the IV!) and return the decrypted plaintext
+        blocklen  -- the block length (default: 16)
+        ciphblock -- a specific ciphertext block to use in the decryption step (default: 'A'*blocklen)
+
+    Returns the IV used for the decryption.
+    '''
+
+    if ciphblock:
+        if len(ciphblock) != blocklen:
+            raise ValueError('The ciphertext block must be as long as a block!')
+    else:
+        ciphblock = 'A' * blocklen
+
+    ciphertext = ciphblock + '\x00' * blocklen + ciphblock
+    plaintext = decfunc(ciphertext)
+    block1, _, block3 = blockify(plaintext, blocklen)   # block1 is P1, block3 is (P1 xor IV)
+    iv = xor_str(block1, block3)
+    return iv
+
 
 def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
     '''An implementation of the padding oracle attack against AES CBC.
@@ -33,7 +66,7 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
 
     Arguments:
         ciphertext -- the complete ciphertext, IV included
-        oraclefunc -- an oracle padding function. The function must take a ciphertext as a string and return True if the padding is correct, False otherwise
+        oraclefunc -- a padding oracle function. The function must take a ciphertext as a string and return True if the padding is correct, False otherwise
         blocklen   -- the AES block length (default: 16)
         verbose    -- print debug information if True (default: False)
 
@@ -90,6 +123,7 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
         ciphertext = ciphertext[:-blocklen]
 
     return plaintext
+
 
 def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16, verbose=False):
     '''An implementation of the chosen prefix attack against AES ECB.
