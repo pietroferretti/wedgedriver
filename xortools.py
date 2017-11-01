@@ -33,9 +33,9 @@ def xor_str(s1, s2):
     return ''.join(chr(ord(x) ^ ord(y)) for x, y in zip(s1, s2))
 
 
-def blockify(ciphertext, keylen):
-    '''Splits the ciphertext as a list of keylen-long strings'''
-    return [ciphertext[i:i+keylen] for i in xrange(0, len(ciphertext), keylen)]
+def blockify(text, blocklen):
+    '''Splits the text as a list of blocklen-long strings'''
+    return [text[i:i+blocklen] for i in xrange(0, len(text), blocklen)]
 
 
 def columnify(ciphertext, keylen, fill=False):
@@ -86,10 +86,60 @@ def egcd(a, b):
         return (g, x - (b // a) * y, y)
 
 
-def findkeylen_all(ciphertext):
+# TODO increase score if actual english words are found
+def englishscore(text):
+    '''Estimates how close the text is to the english language character distribution. 
+
+    NB: A lot of stuff in this function is hand picked to make it work. It is absolutely not guaranteed to be optimal.
+
+    Returns the score for the text as a number (higher is better).
+    '''
+    
+    # letter distribution + custom punctuation to taste (as percentages)
+    distributions = {'a': 8.167, 'b': 1.492, 'c': 2.782, 'd': 4.253, 'e': 12.702, 'f': 2.228, 'g': 2.015, 'h': 6.094, 'i': 6.966, 'j': 0.153, 'k': 0.772, 'l': 4.025, 'm': 2.406, 'n': 6.749, 'o': 7.507, 'p': 1.929, 'q': 0.095, 'r': 5.987, 's': 6.327, 't': 9.056, 'u': 2.758, 'v': 0.978, 'w': 2.360, 'x': 0.150, 'y': 1.974, 'z': 0.074, ' ': 14, '0': 0.1, '1': 0.1, '2': 0.1, '3': 0.1, '4': 0.1, '5': 0.1, '6': 0.1, '7': 0.1, '8': 0.1, '9': 0.1,  '.': 0.1, ',': 0.1, '-': 0.05, '?': 0.05, '!': 0.05 }
+    otherchars = [chr(x) for x in xrange(256) if chr(x) not in distributions]
+    for c in otherchars:
+        distributions[c] = 0.0
+    MAXSCORE = 1000
+
+    textlen = len(text)
+
+    # compute distribution for every character
+    textdist = {}
+    for x in text:
+        if x in textdist:
+            textdist[x] += 1.0 / textlen * 100
+        else:
+            textdist[x] = 1.0 / textlen * 100
+
+    # compute mean squared error
+    error = 0
+    for c in distributions:
+        error += (distributions[c] - textdist.get(c, 0)) ** 2
+    mserror = error / len(distributions)
+
+    if mserror == 0:
+        score = MAXSCORE
+    else:
+        score = min(1 / mserror, MAXSCORE)
+
+    # decrease score sharply if the text contains unprintable characters
+    for x in text:
+        if x not in string.printable:
+            score /= 2
+
+    return score
+
+
+def findkeylen_all(ciphertext, maxcompperlen=100, verbose=False):
     '''Determines the length of a repeated xor key given a ciphertext.
     
     The algorithm works using the Normalized Hamming Distance.
+
+    Arguments:
+        ciphertext    -- the ciphertext as a string
+        maxcompperlen -- the maximum number of comparisons between blocks that will be performed for each candidate length
+        verbose       -- print debug information if True
 
     Returns all the possible key lengths and their respective score as a list of (length, score) tuples.
     The list is ordered from the best to the worst score (lower is better).
@@ -99,6 +149,8 @@ def findkeylen_all(ciphertext):
 
     # try every useful length
     for keylen in xrange(1, len(ciphertext)/2 + 1):
+        if verbose:
+            print 'Checking key length ' + str(keylen)
 
         # split in blocks
         blocks = blockify(ciphertext, keylen)
@@ -112,6 +164,8 @@ def findkeylen_all(ciphertext):
         for block1, block2 in itertools.combinations(blocks, 2):
             total_distance += hamming_distance(block1, block2)
             n_comparisons += 1
+            if n_comparisons >= maxcompperlen:
+                break
 
         avg_distance = float(total_distance) / n_comparisons
         norm_distance = avg_distance / keylen
@@ -123,21 +177,31 @@ def findkeylen_all(ciphertext):
     return result
 
 
-def findkeylen(ciphertext, topn=7):
+def findkeylen(ciphertext, topn=7, maxcompperlen=100, verbose=False):
     '''Determines the length of a repeated xor key given a ciphertext.
 
     Takes the greatest common divisor of the most probable candidates, because multiples of the actual key length often get better scores.
     (see also https://trustedsignal.blogspot.it/2015/06/xord-play-normalized-hamming-distance.html)
     NB: this works best when the characters of the key are very different from one another.
 
+    Arguments:
+        ciphertext    -- the ciphertext as a string
+        topn          -- the number of candidate lengths to consider in the gcd step
+        maxcompperlen -- the maximum number of comparisons between blocks that will be performed for each candidate length
+        verbose       -- print debug information if True
+
     Returns the most probable key length.
     '''
 
     TOPN = topn    # number of top candidates to consider for the gcd step
     
-    len_score_list = findkeylen_all(ciphertext)
+    if verbose:
+        print 'Collecting key length candidates...'
+    len_score_list = findkeylen_all(ciphertext, maxcompperlen=maxcompperlen, verbose=verbose)
     topn_lengths = [t[0] for t in len_score_list[:TOPN]]
 
+    if verbose:
+        print 'Computing most common gcd...'
     gcd_occurences = {}
     for len1, len2 in itertools.combinations(topn_lengths, 2):
         gcd = egcd(len1, len2)[0]
@@ -151,7 +215,7 @@ def findkeylen(ciphertext, topn=7):
     return max(gcd_occurences.keys(), key=(lambda k: gcd_occurences[k]))
 
 
-def findkeychars(ciphertext, keylen=None, charset=string.printable, decfunc=xor_str):
+def findkeychars(ciphertext, keylen=None, charset=string.printable, decfunc=xor_str, verbose=False):
     '''Finds all possible characters for each key index given a set of characters that can appear in the plaintext.
 
     This function assumes a polyalphabetic substition cipher is used.
@@ -161,16 +225,26 @@ def findkeychars(ciphertext, keylen=None, charset=string.printable, decfunc=xor_
         charset    -- a string containing all the characters that can be found in the plaintext (default: all printable characters)
         keylen     -- the length of the key (default: found using findkeylen)
         decfunc    -- a function that takes a character of ciphertext and a character of key and returns a character of plaintext (default: xor)
+        verbose    -- print debug information if True (default: False)
     Returns a list of lists of characters, one list for each key index.
     '''
 
     if keylen is None:
-        keylen = findkeylen(ciphertext)
+        if verbose:
+            print 'Finding key length...'
+        keylen = findkeylen(ciphertext, verbose=verbose)
+        if verbose:
+            print 'Key length = ' + str(keylen)
 
     columns = columnify(ciphertext, keylen)
 
+    if verbose:
+        print 'Finding acceptable character sets...'
     result = []
+    i = 1
     for column in columns:
+        if verbose:
+            print 'Checking column ' + str(i)
         # list of acceptable values for this key index
         good_chars = [chr(x) for x in xrange(256)]
         for char in column:
@@ -178,12 +252,22 @@ def findkeychars(ciphertext, keylen=None, charset=string.printable, decfunc=xor_
             ok_set = [chr(k) for k in xrange(256) if (decfunc(char, chr(k)) in charset)]
             # take intersection with previous acceptable values
             good_chars = filter((lambda e: e in ok_set), good_chars)
-        result.append(good_chars)
 
+        # order good_chars by closeness to the english character distribution
+        if verbose:
+            print 'Sorting characters by score...'
+        fitnessfunc = lambda k: englishscore(''.join(decfunc(c, k) for c in column))
+        good_chars = sorted(good_chars, key=fitnessfunc)[::-1]
+
+        result.append(good_chars)
+        i += 1
+
+    if verbose:
+        print 'Done finding acceptable key characters.'
     return result
 
 
-def findkeys(ciphertext, keylen=None, charset=string.printable, decfunc=xor_str):
+def findkeys(ciphertext, keylen=None, charset=string.printable, decfunc=xor_str, verbose=False):
     '''Finds all possible keys given a set of characters that can appear in the ciphertext.
 
     This function assumes a substition cipher is used. (char by char)
@@ -193,17 +277,23 @@ def findkeys(ciphertext, keylen=None, charset=string.printable, decfunc=xor_str)
         charset    -- a string containing all the characters that can be found in the plaintext (default: all printable characters)
         keylen     -- the length of the key (default: found using findkeylen)
         decfunc    -- a function that takes a character of ciphertext and a character of key and returns a character of plaintext (default: xor)
+        verbose    -- print debug information if True (default: False)
 
     Returns a generator that yields keys as strings.
     '''
 
-    char_list = findkeychars(ciphertext, keylen, charset, decfunc)
+    char_list = findkeychars(ciphertext, keylen, charset, decfunc, verbose)
 
     def key_generator(iter_prod):
         while True:    # stop when iter_prod raises StopIteration
             yield ''.join(iter_prod.next())
 
     return key_generator(itertools.product(*char_list))
+
+
+def findkey(ciphertext, keylen=None, charset=string.printable, decfunc=xor_str, verbose=False):
+    '''A wrapper to get the first, most probable key from findkeys()'''
+    return findkeys(ciphertext, keylen, charset, decfunc, verbose).next()
 
 
 # TODO: add option to find all indexes such that the crib only decrypts in a specified charset
