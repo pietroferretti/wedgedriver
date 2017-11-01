@@ -87,7 +87,7 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
         # decrypted last block
         plainblock = ''
 
-        for i in xrange(blocklen):
+        for i in xrange(1, blocklen + 1):
             found = False
             for guess in xrange(256):
                 if guess != i:
@@ -98,7 +98,7 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
                     # the result should be padded correctly
                     newblock = xor_str(newblock, (chr(i) * i).rjust(blocklen))
                     # if the padding is correct
-                    if oraclefunc(ciphertext[:(-2 * blocklen)] + newblock + ciphertext[-blocklen]):
+                    if oraclefunc(ciphertext[:(-2 * blocklen)] + newblock + ciphertext[-blocklen:]):
                         # the plaintext is guess
                         plainblock = chr(guess) + plainblock
                         found = True
@@ -110,7 +110,7 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
 
             if verbose:
                 print 'Block {}, index {}'.format(len(plaintext)/blocklen, i)
-                print plainblock
+                print plainblock.encode('hex')
 
         # update plaintext
         plaintext = plainblock + plaintext
