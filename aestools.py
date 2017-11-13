@@ -33,6 +33,12 @@ def blockify(text, blocklen):
     return [text[i:i+blocklen] for i in xrange(0, len(text), blocklen)]
 
 
+def cbc_flipiv(oldplain, newplain, iv):
+    '''Modifies an IV to produce the desired new plaintext in the following block'''
+    flipmask = xor_str(oldplain, newplain)
+    return xor_str(iv, flipmask)
+
+
 def cbc_findiv(decfunc, blocklen=16, ciphblock=None):
     '''Finds the IV used during an AES CBC decryption if it's not included in the ciphertext.
     
