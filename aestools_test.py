@@ -1,6 +1,28 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
+# MIT License
+#
+# Copyright (c) 2017 Pietro Ferretti
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import aestools
 import random
 from Crypto.Cipher import AES
@@ -41,9 +63,8 @@ def test_cbc_findiv():
     IV = ''.join(chr(random.randrange(256)) for _ in range(16))
     key = ''.join(chr(random.randrange(256)) for _ in range(16))
 
-    cipher = AES.new(key, AES.MODE_CBC, IV=IV)
-
     def decfunc(ciphertext):
+        cipher = AES.new(key, AES.MODE_CBC, IV=IV)
         return cipher.decrypt(ciphertext)
 
     assert aestools.cbc_findiv(decfunc, blocklen=16) == IV
@@ -62,7 +83,8 @@ def test_cbc_paddingoracle():
     ciphertext = IV + cipher.encrypt(pad(plaintext, blocklen=16))
 
     def oraclefunc(ciphertext):
-        return is_padding_ok(cipher.decrypt(ciphertext), blocklen=16)
+        cipher_dec = AES.new(key, AES.MODE_CBC, IV=IV)
+        return is_padding_ok(cipher_dec.decrypt(ciphertext), blocklen=16)
 
     res = aestools.cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16)
     assert res == pad(plaintext, blocklen=16)
@@ -78,27 +100,26 @@ def test_ecb_chosenprefix():
 
     # random prefixindex
     prefixindex = random.randrange(length)
-
-    cipher = AES.new(key, AES.MODE_ECB)
-
+    
     def encfunc(prefix):
+        cipher = AES.new(key, AES.MODE_ECB)
         padded = pad(plaintext[:prefixindex] + prefix + plaintext[prefixindex:], blocklen=16)
         return cipher.encrypt(padded)
 
     decipherable = aestools.ecb_chosenprefix(encfunc, prefixindex=prefixindex, blocklen=16)
-    assert decipherable == plaintext[prefixindex:]
+    assert decipherable == plaintext[prefixindex:] or unpad(decipherable, 16) == plaintext[prefixindex:]
 
 
 if __name__ == '__main__':
 
-    for _ in range(10):
+    for _ in range(100):
         test_cbc_findiv()
     print 'cbc_findiv test passed!'
 
-    for _ in range(10):
+    for _ in range(100):
         test_cbc_paddingoracle()
     print 'cbc_paddingoracle test passed!'
 
-    for _ in range(10):
+    for _ in range(100):
         test_ecb_chosenprefix()
     print 'ecb_chosenprefix test passed!'
