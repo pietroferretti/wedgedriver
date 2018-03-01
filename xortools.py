@@ -88,45 +88,66 @@ def egcd(a, b):
 
 # TODO increase score if actual english words are found
 def englishscore(text):
-    '''Estimates how close the text is to the english language character distribution. 
-
-    NB: A lot of stuff in this function is hand picked to make it work. It is absolutely not guaranteed to be optimal.
+    '''Estimates how close the string is to a readable piece of english text.
 
     Returns the score for the text as a number (higher is better).
     '''
-    
-    # letter distribution + custom punctuation to taste (as percentages)
-    distributions = {'a': 8.167, 'b': 1.492, 'c': 2.782, 'd': 4.253, 'e': 12.702, 'f': 2.228, 'g': 2.015, 'h': 6.094, 'i': 6.966, 'j': 0.153, 'k': 0.772, 'l': 4.025, 'm': 2.406, 'n': 6.749, 'o': 7.507, 'p': 1.929, 'q': 0.095, 'r': 5.987, 's': 6.327, 't': 9.056, 'u': 2.758, 'v': 0.978, 'w': 2.360, 'x': 0.150, 'y': 1.974, 'z': 0.074, ' ': 14, '0': 0.1, '1': 0.1, '2': 0.1, '3': 0.1, '4': 0.1, '5': 0.1, '6': 0.1, '7': 0.1, '8': 0.1, '9': 0.1,  '.': 0.1, ',': 0.1, '-': 0.05, '?': 0.05, '!': 0.05 }
-    otherchars = [chr(x) for x in xrange(256) if chr(x) not in distributions]
-    for c in otherchars:
-        distributions[c] = 0.0
-    MAXSCORE = 1000
 
-    textlen = len(text)
+    score = 0
 
-    # compute distribution for every character
-    textdist = {}
-    for x in text:
-        if x in textdist:
-            textdist[x] += 1.0 / textlen * 100
+    # raise or decrease score based on the type of characters present
+    for c in text:
+        if c in string.letters:
+            score += 1
+        elif c == ' ':
+            score += 0.8
+        elif c in string.digits:
+            score += 0.5
+        elif c in string.punctuation:
+            score += 0.2
+        elif c not in string.printable:
+            score -= 10
+
+    # next, do some frequency analysis to compare strings with the same number of letters
+    # we will only use the letters
+    text_letters = filter(lambda c: c in string.letters, text)
+    text_letters = text_letters.lower()
+
+    if len(text_letters) > 0:
+
+        # english letter distribution
+        my_distribution = {'a': 8.167, 'b': 1.492, 'c': 2.782, 'd': 4.253, 'e': 12.702, 'f': 2.228, 'g': 2.015, 'h': 6.094, 'i': 6.966, 'j': 0.153, 'k': 0.772, 'l': 4.025, 'm': 2.406, 'n': 6.749, 'o': 7.507, 'p': 1.929, 'q': 0.095, 'r': 5.987, 's': 6.327, 't': 9.056, 'u': 2.758, 'v': 0.978, 'w': 2.360, 'x': 0.150, 'y': 1.974, 'z': 0.074}
+
+        # normalize
+        totalsum = sum(my_distribution.values())
+        distribution = {}
+        for letter in my_distribution:
+            distribution[letter] = my_distribution[letter] / totalsum
+
+        # compute distribution for every character
+        textlen = len(text_letters)
+        textdist = {}
+        for x in text_letters:
+            if x in textdist:
+                textdist[x] += 1.0 / textlen
+            else:
+                textdist[x] = 1.0 / textlen
+
+        # compute Pearson chi-squared statistic
+        chi2 = 0
+        for c in distribution:
+            p = distribution[c]
+            obs = textdist.get(c, 0)
+            chi2 += ((obs - p) ** 2) / p
+        chi2 = chi2 * textlen
+
+        # normalize to avoid giving the frequency analysis too much importance
+        if chi2 <= 1:
+            bonus = 1
         else:
-            textdist[x] = 1.0 / textlen * 100
+            bonus = 1.0 / chi2
 
-    # compute mean squared error
-    error = 0
-    for c in distributions:
-        error += (distributions[c] - textdist.get(c, 0)) ** 2
-    mserror = error / len(distributions)
-
-    if mserror == 0:
-        score = MAXSCORE
-    else:
-        score = min(1 / mserror, MAXSCORE)
-
-    # decrease score sharply if the text contains unprintable characters
-    for x in text:
-        if x not in string.printable:
-            score /= 2
+        score += bonus
 
     return score
 
@@ -257,11 +278,11 @@ def findkeychars(ciphertext, keylen=None, charset=string.printable, decfunc=xor_
         if verbose:
             print 'Sorting characters by score...'
         fitnessfunc = lambda k: englishscore(''.join(decfunc(c, k) for c in column))
-        good_chars = sorted(good_chars, key=fitnessfunc)[::-1]
+        best_char = sorted(good_chars, key=fitnessfunc)[::-1]
 
         if verbose:
-            print(good_chars)
-        result.append(good_chars)
+            print(best_char)
+        result.append(best_char)
         i += 1
 
     if verbose:
@@ -295,7 +316,17 @@ def findkeys(ciphertext, keylen=None, charset=string.printable, decfunc=xor_str,
 
 def findkey(ciphertext, keylen=None, charset=string.printable, decfunc=xor_str, verbose=False):
     '''A wrapper to get the first, most probable key from findkeys()'''
-    return findkeys(ciphertext, keylen, charset, decfunc, verbose).next()
+
+    try:
+        result = findkeys(ciphertext, keylen, charset, decfunc, verbose).next()
+        if verbose:
+            print 'Key:', result
+    except StopIteration:
+        result = None
+        if verbose:
+            print 'Couldn\'t find key!'
+
+    return result
 
 
 # TODO: add option to find all indexes such that the crib only decrypts in a specified charset
