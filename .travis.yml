@@ -4,4 +4,4 @@ python:
 install:
  - pip install pycrypto
 script:
- - python aestools_test.py
+ - pytest

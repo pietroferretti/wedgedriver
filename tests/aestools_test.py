@@ -28,6 +28,8 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pytest
+
 import aestools
 import random
 from Crypto.Cipher import AES
@@ -63,7 +65,10 @@ def unpad(s, blocklen):
     return s[:-padvalue]
 
 
-def test_cbc_findiv():
+@pytest.mark.parametrize('seed', range(100))
+def test_cbc_findiv(seed):
+    random.seed(seed)
+
     # random 128 bits IV, key
     IV = ''.join(chr(random.randrange(256)) for _ in range(16))
     key = ''.join(chr(random.randrange(256)) for _ in range(16))
@@ -75,7 +80,10 @@ def test_cbc_findiv():
     assert aestools.cbc_findiv(decfunc, blocklen=16) == IV
 
 
-def test_cbc_paddingoracle():
+@pytest.mark.parametrize('seed', range(100))
+def test_cbc_paddingoracle(seed):
+    random.seed(seed)
+
     # random 128 bits IV, key
     IV = ''.join(chr(random.randrange(256)) for _ in range(16))
     key = ''.join(chr(random.randrange(256)) for _ in range(16))
@@ -95,7 +103,9 @@ def test_cbc_paddingoracle():
     assert res == pad(plaintext, blocklen=16)
 
 
-def test_ecb_chosenprefix():
+@pytest.mark.parametrize('seed', range(100))
+def test_ecb_chosenprefix(seed):
+    random.seed(seed)
     # random 128 bits key
     key = ''.join(chr(random.randrange(256)) for _ in range(16))
 
@@ -113,19 +123,3 @@ def test_ecb_chosenprefix():
 
     decipherable = aestools.ecb_chosenprefix(encfunc, prefixindex=prefixindex, blocklen=16)
     assert decipherable == plaintext[prefixindex:] or unpad(decipherable, 16) == plaintext[prefixindex:]
-
-
-if __name__ == '__main__':
-
-    for _ in range(100):
-        test_cbc_findiv()
-    print 'cbc_findiv test passed!'
-
-    for _ in range(100):
-        test_cbc_paddingoracle()
-    print 'cbc_paddingoracle test passed!'
-
-    for _ in range(100):
-        test_ecb_chosenprefix()
-    print 'ecb_chosenprefix test passed!'
-
