@@ -23,6 +23,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# add parent folder to PYTHONPATH
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import aestools
 import random
 from Crypto.Cipher import AES
@@ -123,3 +128,4 @@ if __name__ == '__main__':
     for _ in range(100):
         test_ecb_chosenprefix()
     print 'ecb_chosenprefix test passed!'
+

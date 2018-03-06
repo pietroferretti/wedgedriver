@@ -94,25 +94,36 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
         plainblock = ''
 
         for i in xrange(1, blocklen + 1):
-            found = False
+            found = []
             for guess in xrange(256):
-                if guess != i:
-                    # take next to last block
+                # take next to last block
+                newblock = ciphertext[(-2 * blocklen):-blocklen]
+                # try to null out the decrypted last block
+                newblock = xor_str(newblock, (chr(guess) + plainblock).rjust(blocklen))
+                # the result should be padded correctly
+                newblock = xor_str(newblock, (chr(i) * i).rjust(blocklen))
+                # if the padding is correct
+                if oraclefunc(ciphertext[:(-2 * blocklen)] + newblock + ciphertext[-blocklen:]):
+                    # add guess to possible candidates
+                    found.append(guess)
+
+            # spurious results can be found if the previous character is between 0x1 and 0x10
+            # check which guess is wrong by changing the previous character
+            if i != blocklen:
+                for guess in found:
                     newblock = ciphertext[(-2 * blocklen):-blocklen]
-                    # try to null out the decrypted last block
-                    newblock = xor_str(newblock, (chr(guess) + plainblock).rjust(blocklen))
-                    # the result should be padded correctly
+                    newblock = xor_str(newblock, ('\x80' + chr(guess) + plainblock).rjust(blocklen))
                     newblock = xor_str(newblock, (chr(i) * i).rjust(blocklen))
-                    # if the padding is correct
                     if oraclefunc(ciphertext[:(-2 * blocklen)] + newblock + ciphertext[-blocklen:]):
-                        # the plaintext is guess
-                        plainblock = chr(guess) + plainblock
-                        found = True
+                        good_guess = guess
                         break
-            # if none of the guesses were ok
-            if not found:
-                # the plaintext is i
-                plainblock = chr(i) + plainblock
+            else:
+                # there shouldn't be any spurious results for the last byte
+                assert len(found) == 1
+                good_guess = found[0]
+
+            # update known plaintext
+            plainblock = chr(good_guess) + plainblock
 
             if verbose:
                 print 'Block {}, index {}'.format(len(plaintext)/blocklen, i)
