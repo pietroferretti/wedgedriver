@@ -9,7 +9,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setuptools.setup(
     name="ctftools",
-    version="0.1.0",
+    version="0.1.1",
     author="Pietro Ferretti",
     author_email="me@pietroferretti.com",
     description="A small collection of tools for solving CTF challenges",
@@ -18,7 +18,7 @@ setuptools.setup(
     url="https://github.com/pietroferretti/ctftools",
     license='MIT',
     packages=setuptools.find_packages(exclude=['tests']),
-    install_requires=['six'],
+    install_requires=['six', 'PyEnchant'],
     extras_require={
         'tests': ['pytest', 'pycrypto']
     },
