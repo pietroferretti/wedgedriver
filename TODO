@@ -1,4 +1,8 @@
 TODO:
+- change name to xortools: they actually work on all polyalphabetic ciphers
+- xortools function that works on a list of strings
+- xortools function that takes a string we know exists in the plaintext to simplify things
+- findkey, but keep a number of candidates (2 per char?) and look for english words
 - tests for xortools
 - rsatools
 - coveralls integration

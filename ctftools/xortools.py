@@ -25,15 +25,26 @@
 import math
 import ast
 import itertools
+import enchant
 
-from six import iterbytes, int2byte, next, binary_type, print_
+from six import iterbytes, int2byte, byte2int, unichr, next, binary_type, b, print_
 from six.moves import range, filter, input
 from .utils import xor, blockify, columnify
 
-LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-DIGITS = '0123456789'
-PUNCTUATION = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'
-PRINTABLE = LETTERS + DIGITS + PUNCTUATION + ' \t\n\r\x0b\x0c'
+LETTERS = b('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')
+DIGITS = b('0123456789')
+PUNCTUATION = b('!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~')
+PRINTABLE = LETTERS + DIGITS + PUNCTUATION + b(' \t\n\r\x0b\x0c')
+
+ENGLISH_DICTIONARY = enchant.Dict('en_US')
+ENGLISH_DISTRIBUTION = {b'a': 8.167, b'b': 1.492, b'c': 2.782, b'd': 4.253, b'e': 12.702, b'f': 2.228, b'g': 2.015,
+                        b'h': 6.094, b'i': 6.966, b'j': 0.153, b'k': 0.772, b'l': 4.025, b'm': 2.406, b'n': 6.749,
+                        b'o': 7.507, b'p': 1.929, b'q': 0.095, b'r': 5.987, b's': 6.327, b't': 9.056, b'u': 2.758,
+                        b'v': 0.978, b'w': 2.360, b'x': 0.150, b'y': 1.974, b'z': 0.074}
+
+
+def bytes2unic(bytearr):
+    return ''.join(unichr(x) for x in iterbytes(bytearr))
 
 
 def hamming_distance(a, b):
@@ -55,25 +66,20 @@ def egcd(a, b):
         return g, x - (b // a) * y, y
 
 
-# TODO increase score if actual english words are found
 def englishscore(text):
-    """Estimates how close the string is to a readable piece of english text.
+    """Estimates how close the distribution of characters in a string is to english text.
 
     Returns the score for the text as a number (higher is better).
     """
-    # english letter distribution
-    english_distribution = {'a': 8.167, 'b': 1.492, 'c': 2.782, 'd': 4.253, 'e': 12.702, 'f': 2.228, 'g': 2.015,
-                            'h': 6.094, 'i': 6.966, 'j': 0.153, 'k': 0.772, 'l': 4.025, 'm': 2.406, 'n': 6.749,
-                            'o': 7.507, 'p': 1.929, 'q': 0.095, 'r': 5.987, 's': 6.327, 't': 9.056, 'u': 2.758,
-                            'v': 0.978, 'w': 2.360, 'x': 0.150, 'y': 1.974, 'z': 0.074}
     score = 0
 
     # raise or decrease score based on the type of characters present
     # arbitrary scores, could be better
-    for c in text:
+    for c in iterbytes(text):
+        c = int2byte(c)
         if c in LETTERS:
             score += 1
-        elif c == ' ':
+        elif c == b' ':
             score += 0.8
         elif c in DIGITS:
             score += 0.5
@@ -84,19 +90,20 @@ def englishscore(text):
 
     # next, do some frequency analysis to compare strings with the same number of letters
     # we will only use the letters
-    text_letters = ''.join(filter(lambda c: c in LETTERS, text))
+    text_letters = binary_type().join(int2byte(c) for c in filter(lambda c: int2byte(c) in LETTERS, iterbytes(text)))
     text_letters = text_letters.lower()
     if len(text_letters) > 0:
         # normalize
-        totalsum = sum(english_distribution.values())
+        totalsum = sum(ENGLISH_DISTRIBUTION.values())
         distribution = {}
-        for letter in english_distribution:
-            distribution[letter] = english_distribution[letter] / totalsum
+        for letter in ENGLISH_DISTRIBUTION:
+            distribution[letter] = ENGLISH_DISTRIBUTION[letter] / totalsum
 
         # compute distribution for every character
         textlen = len(text_letters)
         textdist = {}
-        for x in text_letters:
+        for x in iterbytes(text_letters):
+            x = int2byte(x)
             if x in textdist:
                 textdist[x] += 1.0 / textlen
             else:
@@ -117,6 +124,23 @@ def englishscore(text):
             bonus = 1.0 / chi2
         score += bonus
 
+    return score
+
+
+def dictionary_score(text):
+    """Give points for full english words"""
+    score = 0
+    text_words = binary_type()
+    for c in iterbytes(text):
+        byte = int2byte(c)
+        if byte in LETTERS:
+            text_words += byte
+        else:
+            text_words += b(' ')
+    words = text_words.split(b(' '))
+    for word in words:
+        if len(word) >= 5 and ENGLISH_DICTIONARY.check(bytes2unic(word)):
+            score += len(word)
     return score
 
 
@@ -238,9 +262,9 @@ def findkeychars(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbos
             print_('Checking column ' + str(i))
         # list of acceptable values for this key index
         good_chars = [int2byte(x) for x in range(256)]
-        for char in column:
+        for char in iterbytes(column):
             # find values of key that map to an acceptable plaintext
-            ok_set = [int2byte(k) for k in range(256) if (decfunc(char, int2byte(k)) in charset)]
+            ok_set = [int2byte(k) for k in range(256) if (decfunc(int2byte(char), int2byte(k)) in charset)]
             # take intersection with previous acceptable values
             good_chars = filter((lambda e: e in ok_set), good_chars)
 
@@ -249,7 +273,7 @@ def findkeychars(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbos
             print_('Sorting characters by score...')
 
         def fitnessfunc(k):
-            dec = binary_type().join(int2byte(decfunc(c, k)) for c in column)
+            dec = binary_type().join(decfunc(int2byte(c), k) for c in iterbytes(column))
             return englishscore(dec)
         best_char = sorted(good_chars, key=fitnessfunc)[::-1]
 
@@ -279,12 +303,32 @@ def findkeys(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fa
     """
 
     char_list = findkeychars(ciphertext, keylen, charset, decfunc, verbose)
+    repeats = (len(ciphertext) // keylen) + 1
 
     def key_generator(iter_prod):
         while True:  # stop when iter_prod raises StopIteration
-            yield ''.join(next(iter_prod))
+            yield binary_type().join(next(iter_prod))
 
-    return key_generator(itertools.product(*char_list))
+    # extract first 100 keys, give priority to plaintexts with english words
+    def generator_wrapper(key_gen):
+        best_candidates = []
+        for _ in range(100):
+            best_candidates.append(next(key_gen))
+
+        def candidate_score(key):
+            return dictionary_score(decfunc(ciphertext, key*repeats))
+        best_candidates.sort(key=candidate_score)
+        # best_candidates.reverse()
+        print(candidate_score(best_candidates[0]))
+        print(candidate_score(best_candidates[-1]))
+
+        while best_candidates:
+            yield best_candidates.pop()
+        while True:
+            yield next(key_gen)
+
+    # return key_generator(itertools.product(*char_list))
+    return generator_wrapper(key_generator(itertools.product(*char_list)))
 
 
 def findkey(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=False):
@@ -304,6 +348,7 @@ def findkey(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fal
 
 # TODO: add option to find all indexes such that the crib only decrypts in a specified charset
 # TODO: refactor as a class, this is horrible
+# FIXME obviously doesn't work with Python 3
 def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
     """Starts an interactive cribdrag session.
 
@@ -346,7 +391,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
 
     def decrypt(ciphertext, key, decfunc):
         """Decrypt the ciphertext with key, unknown bytes are replaced with '*'"""
-        res = ''
+        res = binary_type()
         for i in range(len(ciphertext)):
             if key[i % keylen] is None:
                 res += '*'
@@ -380,14 +425,14 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
     def prompt(prevchoice, prevarg):
         userinput = input('> ')
         userinput = userinput.lstrip()
-        if userinput == '':
+        if userinput == binary_type():
             return prevchoice, prevarg
         choice = userinput.split(' ')[0]
         argument = userinput[len(choice) + 1:]
         return choice, argument
 
     # initial parameters
-    crib = ''
+    crib = binary_type()
     cribindex = 0
     key = [None] * keylen
     curr_key = key[:]
@@ -397,12 +442,12 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
     update_and_print_()
 
     # prompt
-    choice, argument = prompt('h', '')
+    choice, argument = prompt('h', binary_type())
 
     while choice != 'q' and choice != 'quit':
 
         if choice == 'h' or choice == 'help':
-            guide = ''
+            guide = binary_type()
             guide += 'Commands:\n'
             guide += '  (c)rib <your_crib> -- set the crib (argument is like \"asdf\\x10\\n jkl\")\n'
             guide += '  (n)ext -- move the crib forward by one\n'
@@ -419,7 +464,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
         elif choice == 'c' or choice == 'crib':
             # remove spaces from sides
             argument = argument.strip()
-            if argument == '':
+            if argument == binary_type():
                 argument = '""'
             try:
                 newcrib = ast.literal_eval(argument)
@@ -440,7 +485,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
                 print_('  crib \"as\\\"df\\x10\\n jkl\"')
 
         elif choice == 'n' or choice == 'next':
-            if crib == '':
+            if crib == binary_type():
                 print_('You need to set a crib.')
             elif cribindex == (len(ciphertext) - len(crib)):
                 print_('Can\'t increase the index or the crib won\'t fit.')
@@ -449,7 +494,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
                 update_and_print_()
 
         elif choice == 'p' or choice == 'prev':
-            if crib == '':
+            if crib == binary_type():
                 print_('You need to set a crib.')
             elif cribindex == 0:
                 print_('Can\'t set the index at less than 0.')
@@ -458,7 +503,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
                 update_and_print_()
 
         elif choice == 'j' or choice == 'jump':
-            if crib == '':
+            if crib == binary_type():
                 print_('You need to set a crib.')
             else:
                 try:
@@ -489,7 +534,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
             key = newkey[:]
 
             # reset crib
-            crib = ''
+            crib = binary_type()
             cribindex = 0
             print_('Key updated: {}'.format(key))
             print_('Crib reset.')
@@ -519,7 +564,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
             print_(decrypt(ciphertext, key, decfunc))
 
         elif choice == 'r' or choice == 'reset':
-            crib = ''
+            crib = binary_type()
             cribindex = 0
             key = [None] * keylen
             print_('Crib and key have been reset.')
@@ -571,4 +616,4 @@ def keyinplaintext(ciphertext, keylen, keyindex, seed, seedindex, decfunc=xor, k
 
     assert None not in key
 
-    return ''.join(key)
+    return binary_type().join(key)
