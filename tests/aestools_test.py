@@ -23,55 +23,52 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# add parent folder to PYTHONPATH
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from ctftools import aestools
 
 import pytest
-
-import aestools
 import random
 from Crypto.Cipher import AES
 
+from six import int2byte, byte2int, binary_type, indexbytes, iterbytes
+from six.moves import range
+
 
 class BadPaddingError(Exception):
-    '''Used to implement a padding oracle'''
+    """Used to implement a padding oracle"""
     pass
 
 
 def pad(s, blocklen):
     if blocklen > 256:
         return ValueError('The block length must be less than 256!')
-
     remainder = len(s) % blocklen
     if remainder == 0:
-        return s + chr(blocklen) * blocklen
+        return s + int2byte(blocklen) * blocklen
     else:
-        return s + chr(blocklen - remainder) * (blocklen - remainder)
+        return s + int2byte(blocklen - remainder) * (blocklen - remainder)
+
 
 def is_padding_ok(s, blocklen):
-    padvalue = ord(s[-1])
+    padvalue = indexbytes(s, -1)
     if padvalue > blocklen:
         return False
+    return all(c == padvalue for c in iterbytes(s[-padvalue:]))
 
-    return all(ord(c) == padvalue for c in s[-padvalue:])
 
 def unpad(s, blocklen):
     if not is_padding_ok(s, blocklen):
         raise BadPaddingError()
-
-    padvalue = ord(s[-1])
+    padvalue = indexbytes(s, -1)
     return s[:-padvalue]
 
 
-@pytest.mark.parametrize('seed', range(100))
+@pytest.mark.parametrize('seed', range(10))
 def test_cbc_findiv(seed):
     random.seed(seed)
 
     # random 128 bits IV, key
-    IV = ''.join(chr(random.randrange(256)) for _ in range(16))
-    key = ''.join(chr(random.randrange(256)) for _ in range(16))
+    IV = binary_type().join(int2byte(random.randrange(256)) for _ in range(16))
+    key = binary_type().join(int2byte(random.randrange(256)) for _ in range(16))
 
     def decfunc(ciphertext):
         cipher = AES.new(key, AES.MODE_CBC, IV=IV)
@@ -80,17 +77,17 @@ def test_cbc_findiv(seed):
     assert aestools.cbc_findiv(decfunc, blocklen=16) == IV
 
 
-@pytest.mark.parametrize('seed', range(100))
+@pytest.mark.parametrize('seed', range(10))
 def test_cbc_paddingoracle(seed):
     random.seed(seed)
 
     # random 128 bits IV, key
-    IV = ''.join(chr(random.randrange(256)) for _ in range(16))
-    key = ''.join(chr(random.randrange(256)) for _ in range(16))
+    IV = binary_type().join(int2byte(random.randrange(256)) for _ in range(16))
+    key = binary_type().join(int2byte(random.randrange(256)) for _ in range(16))
 
     # random plaintext
     length = random.randrange(10, 40)
-    plaintext = ''.join(chr(random.randrange(256)) for _ in range(length))
+    plaintext = binary_type().join(int2byte(random.randrange(256)) for _ in range(length))
 
     cipher = AES.new(key, AES.MODE_CBC, IV=IV)
     ciphertext = IV + cipher.encrypt(pad(plaintext, blocklen=16))
@@ -103,19 +100,19 @@ def test_cbc_paddingoracle(seed):
     assert res == pad(plaintext, blocklen=16)
 
 
-@pytest.mark.parametrize('seed', range(100))
+@pytest.mark.parametrize('seed', range(10))
 def test_ecb_chosenprefix(seed):
     random.seed(seed)
     # random 128 bits key
-    key = ''.join(chr(random.randrange(256)) for _ in range(16))
+    key = binary_type().join(int2byte(random.randrange(256)) for _ in range(16))
 
     # random plaintext
     length = random.randrange(10, 40)
-    plaintext = ''.join(chr(random.randrange(256)) for _ in range(length))
+    plaintext = binary_type().join(int2byte(random.randrange(256)) for _ in range(length))
 
     # random prefixindex
     prefixindex = random.randrange(length)
-    
+
     def encfunc(prefix):
         cipher = AES.new(key, AES.MODE_ECB)
         padded = pad(plaintext[:prefixindex] + prefix + plaintext[prefixindex:], blocklen=16)

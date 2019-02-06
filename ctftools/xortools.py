@@ -26,8 +26,7 @@ import math
 import ast
 import itertools
 
-from six import iterbytes, int2byte, next, binary_type
-from six import print_ as print
+from six import iterbytes, int2byte, next, binary_type, print_
 from six.moves import range, filter, input
 from .utils import xor, blockify, columnify
 
@@ -141,7 +140,7 @@ def findkeylen_all(ciphertext, maxcompperlen=100, verbose=False):
     # try every useful length
     for keylen in range(1, len(ciphertext) // 2 + 1):
         if verbose:
-            print('Checking key length {}'.format(keylen))
+            print_('Checking key length {}'.format(keylen))
 
         # split in blocks
         blocks = blockify(ciphertext, keylen)
@@ -188,12 +187,12 @@ def findkeylen(ciphertext, topn=7, maxcompperlen=100, verbose=False):
     TOPN = topn  # number of top candidates to consider for the gcd step
 
     if verbose:
-        print('Collecting key length candidates...')
+        print_('Collecting key length candidates...')
     len_score_list = findkeylen_all(ciphertext, maxcompperlen=maxcompperlen, verbose=verbose)
     topn_lengths = [t[0] for t in len_score_list[:TOPN]]
 
     if verbose:
-        print('Computing most common gcd...')
+        print_('Computing most common gcd...')
     gcd_occurences = {}
     for len1, len2 in itertools.combinations(topn_lengths, 2):
         gcd = egcd(len1, len2)[0]
@@ -223,20 +222,20 @@ def findkeychars(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbos
 
     if keylen is None:
         if verbose:
-            print('Finding key length...')
+            print_('Finding key length...')
         keylen = findkeylen(ciphertext, verbose=verbose)
         if verbose:
-            print('Key length = {}'.format(keylen))
+            print_('Key length = {}'.format(keylen))
 
     columns = columnify(ciphertext, keylen)
 
     if verbose:
-        print('Finding acceptable character sets...')
+        print_('Finding acceptable character sets...')
     result = []
     i = 1
     for column in columns:
         if verbose:
-            print('Checking column ' + str(i))
+            print_('Checking column ' + str(i))
         # list of acceptable values for this key index
         good_chars = [int2byte(x) for x in range(256)]
         for char in column:
@@ -247,21 +246,20 @@ def findkeychars(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbos
 
         # order good_chars by closeness to the english character distribution
         if verbose:
-            print('Sorting characters by score...')
+            print_('Sorting characters by score...')
+
         def fitnessfunc(k):
-            dec = binary_type()
-            for c in column:
-                dec += int2byte(decfunc(c, k))
+            dec = binary_type().join(int2byte(decfunc(c, k)) for c in column)
             return englishscore(dec)
         best_char = sorted(good_chars, key=fitnessfunc)[::-1]
 
         if verbose:
-            print(best_char)
+            print_(best_char)
         result.append(best_char)
         i += 1
 
     if verbose:
-        print('Done finding acceptable key characters.')
+        print_('Done finding acceptable key characters.')
     return result
 
 
@@ -295,11 +293,11 @@ def findkey(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fal
     try:
         result = next(findkeys(ciphertext, keylen, charset, decfunc, verbose))
         if verbose:
-            print('Key: {}'.format(result))
+            print_('Key: {}'.format(result))
     except StopIteration:
         result = None
         if verbose:
-            print("No key found!")
+            print_("No key found!")
 
     return result
 
@@ -336,7 +334,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
                 line += block[j]
                 if (cribindex + criblen) == (i * blocklen + j + 1) and criblen != 0:
                     line += ']'
-            print(line)
+            print_(line)
 
     def getkey(ciphertext, keylen, crib, cribindex, keyfunc):
         """Find the key corresponding to a crib at position cribindex"""
@@ -356,7 +354,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
                 res += decfunc(ciphertext[i], key[i % keylen])
         return res
 
-    def update_and_print():
+    def update_and_print_():
         """Update key with current crib and print result"""
 
         # empty curr_key
@@ -374,10 +372,10 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
         # print decrypted blocks
         dec_blocks = blockify(decrypt(ciphertext, curr_key, decfunc), keylen)
         print_lines(dec_blocks, cribindex, len(crib))
-        print('Crib: {}'.format(crib))
-        print('Index: {}'.format(cribindex))
-        print('Key: {}'.format(key))
-        print('New key: {}'.format(curr_key))
+        print_('Crib: {}'.format(crib))
+        print_('Index: {}'.format(cribindex))
+        print_('Key: {}'.format(key))
+        print_('New key: {}'.format(curr_key))
 
     def prompt(prevchoice, prevarg):
         userinput = input('> ')
@@ -396,7 +394,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
     if keyfunc is None:
         keyfunc = decfunc
 
-    update_and_print()
+    update_and_print_()
 
     # prompt
     choice, argument = prompt('h', '')
@@ -416,7 +414,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
             guide += '  (r)eset -- reset everything from this session\n'
             guide += '  (q)uit -- exit from the cribdrag tool\n'
             guide += '  (h)elp -- show this guide\n'
-            print(guide)
+            print_(guide)
 
         elif choice == 'c' or choice == 'crib':
             # remove spaces from sides
@@ -426,53 +424,53 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
             try:
                 newcrib = ast.literal_eval(argument)
                 if type(newcrib) != str:
-                    print('The crib must be a string!')
+                    print_('The crib must be a string!')
                 elif len(newcrib) > keylen:
-                    print(
+                    print_(
                         'The crib {} is longer than the key! The maximum allowed length is {}.'.format(newcrib, keylen))
                 else:
                     # set crib
                     crib = newcrib
                     cribindex = 0
-                    update_and_print()
+                    update_and_print_()
 
             except (TypeError, ValueError, SyntaxError):
-                print('Couldn\'t parse the crib!')
-                print('The command should be called like this:')
-                print('  crib \"as\\\"df\\x10\\n jkl\"')
+                print_('Couldn\'t parse the crib!')
+                print_('The command should be called like this:')
+                print_('  crib \"as\\\"df\\x10\\n jkl\"')
 
         elif choice == 'n' or choice == 'next':
             if crib == '':
-                print('You need to set a crib.')
+                print_('You need to set a crib.')
             elif cribindex == (len(ciphertext) - len(crib)):
-                print('Can\'t increase the index or the crib won\'t fit.')
+                print_('Can\'t increase the index or the crib won\'t fit.')
             else:
                 cribindex += 1
-                update_and_print()
+                update_and_print_()
 
         elif choice == 'p' or choice == 'prev':
             if crib == '':
-                print('You need to set a crib.')
+                print_('You need to set a crib.')
             elif cribindex == 0:
-                print('Can\'t set the index at less than 0.')
+                print_('Can\'t set the index at less than 0.')
             else:
                 cribindex -= 1
-                update_and_print()
+                update_and_print_()
 
         elif choice == 'j' or choice == 'jump':
             if crib == '':
-                print('You need to set a crib.')
+                print_('You need to set a crib.')
             else:
                 try:
                     newindex = int(argument)
                     if newindex < 0:
-                        print('The index must be a positive number.')
+                        print_('The index must be a positive number.')
                     elif newindex > (len(ciphertext) - len(crib)):
-                        print('That index is too big, the crib won\'t fit.')
-                        print('The maximum acceptable index is {}.'.format(len(ciphertext) - len(crib)))
+                        print_('That index is too big, the crib won\'t fit.')
+                        print_('The maximum acceptable index is {}.'.format(len(ciphertext) - len(crib)))
                     else:
                         cribindex = newindex
-                        update_and_print()
+                        update_and_print_()
 
                 except ValueError:
                     'Error: {} is not a valid number'
@@ -493,8 +491,8 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
             # reset crib
             crib = ''
             cribindex = 0
-            print('Key updated: {}'.format(key))
-            print('Crib reset.')
+            print_('Key updated: {}'.format(key))
+            print_('Crib reset.')
 
         elif choice == 'k' or choice == 'key':
             # remove spaces from sides
@@ -502,33 +500,33 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
             try:
                 newkey = ast.literal_eval(argument)
                 if type(newkey) != list:
-                    print('The argument must be passed as a list!')
-                    print('The command should be called like this:')
-                    print('  key [\'a\', \'\\x01\', None, \'\\n\']')
+                    print_('The argument must be passed as a list!')
+                    print_('The command should be called like this:')
+                    print_('  key [\'a\', \'\\x01\', None, \'\\n\']')
                 elif len(newkey) != keylen:
-                    print('The key must be {} characters long!'.format(keylen))
+                    print_('The key must be {} characters long!'.format(keylen))
                 else:
-                    print('Key updated.')
+                    print_('Key updated.')
                     key = newkey[:]
-                    update_and_print()
+                    update_and_print_()
 
             except (TypeError, ValueError, SyntaxError):
-                print('Couldn\'t parse the key!')
-                print('The command should be called like this:')
-                print('  key [\'a\', \'\\x01\', None, \'\\n\']')
+                print_('Couldn\'t parse the key!')
+                print_('The command should be called like this:')
+                print_('  key [\'a\', \'\\x01\', None, \'\\n\']')
 
         elif choice == 's' or choice == 'show':
-            print(decrypt(ciphertext, key, decfunc))
+            print_(decrypt(ciphertext, key, decfunc))
 
         elif choice == 'r' or choice == 'reset':
             crib = ''
             cribindex = 0
             key = [None] * keylen
-            print('Crib and key have been reset.')
+            print_('Crib and key have been reset.')
 
         else:
-            print('Command "{}" not recognized.'.format(choice))
-            print('Enter "h" or "help" for a list of available commands.')
+            print_('Command "{}" not recognized.'.format(choice))
+            print_('Enter "h" or "help" for a list of available commands.')
 
         # prompt
         choice, argument = prompt(choice, argument)

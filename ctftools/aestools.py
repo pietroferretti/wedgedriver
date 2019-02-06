@@ -22,9 +22,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# TODO fix bytes stuff
-from six import iterbytes, int2byte, next, binary_type
-from six import print_ as print
+from six import int2byte, binary_type, indexbytes
+from six import print_
 from six.moves import range
 
 from .utils import xor, blockify
@@ -44,7 +43,7 @@ def cbc_findiv(decfunc, blocklen=16, ciphblock=None):
     Arguments:
         decfunc   -- a decryption oracle function. The function must take a ciphertext (without the IV!) and return the decrypted plaintext
         blocklen  -- the block length (default: 16)
-        ciphblock -- a specific ciphertext block to use in the decryption step (default: 'A'*blocklen)
+        ciphblock -- a specific ciphertext block to use in the decryption step (default: int2byte(ord('A'))*blocklen)
 
     Returns the IV used for the decryption.
     """
@@ -53,9 +52,9 @@ def cbc_findiv(decfunc, blocklen=16, ciphblock=None):
         if len(ciphblock) != blocklen:
             raise ValueError('The ciphertext block must be as long as a block!')
     else:
-        ciphblock = 'A' * blocklen
+        ciphblock = int2byte(ord('A')) * blocklen
 
-    ciphertext = ciphblock + '\x00' * blocklen + ciphblock
+    ciphertext = ciphblock + int2byte(0x00) * blocklen + ciphblock
     plaintext = decfunc(ciphertext)
     block1, _, block3 = blockify(plaintext, blocklen)  # block1 is P1, block3 is (P1 xor IV)
     iv = xor(block1, block3)
@@ -82,13 +81,13 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
     if len(ciphertext) < blocklen * 2:
         raise ValueError('The ciphertext is too short! (it must at least contain the IV block and another block)')
 
-    plaintext = ''
+    plaintext = binary_type()
 
     # continue until we decrypted all useful blocks
     while len(ciphertext) >= blocklen * 2:
 
         # decrypted last block
-        plainblock = ''
+        plainblock = binary_type()
 
         for i in range(1, blocklen + 1):
             found = []
@@ -96,9 +95,9 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
                 # take next to last block
                 newblock = ciphertext[(-2 * blocklen):-blocklen]
                 # try to null out the decrypted last block
-                newblock = xor(newblock, (chr(guess) + plainblock).rjust(blocklen))
+                newblock = xor(newblock, (int2byte(guess) + plainblock).rjust(blocklen))
                 # the result should be padded correctly
-                newblock = xor(newblock, (chr(i) * i).rjust(blocklen))
+                newblock = xor(newblock, (int2byte(i) * i).rjust(blocklen))
                 # if the padding is correct
                 if oraclefunc(ciphertext[:(-2 * blocklen)] + newblock + ciphertext[-blocklen:]):
                     # add guess to possible candidates
@@ -110,8 +109,8 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
             if i != blocklen:
                 for guess in found:
                     newblock = ciphertext[(-2 * blocklen):-blocklen]
-                    newblock = xor(newblock, ('\x80' + chr(guess) + plainblock).rjust(blocklen))
-                    newblock = xor(newblock, (chr(i) * i).rjust(blocklen))
+                    newblock = xor(newblock, (int2byte(0x80) + int2byte(guess) + plainblock).rjust(blocklen))
+                    newblock = xor(newblock, (int2byte(i) * i).rjust(blocklen))
                     if oraclefunc(ciphertext[:(-2 * blocklen)] + newblock + ciphertext[-blocklen:]):
                         good_guess = guess
                         break
@@ -124,18 +123,18 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
                 raise AssertionError('Something went wrong.')
 
             # update known plaintext
-            plainblock = chr(good_guess) + plainblock
+            plainblock = int2byte(good_guess) + plainblock
 
             if verbose:
-                print('Block {}, index {}'.format(len(plaintext) / blocklen, i))
-                print(plainblock.encode('hex'))
+                print_('Block {}, index {}'.format(len(plaintext) // blocklen, i))
+                print_(plainblock.encode('hex'))
 
         # update plaintext
         plaintext = plainblock + plaintext
 
         if verbose:
-            print('Result so far:')
-            print(plaintext)
+            print_('Result so far:')
+            print_(plaintext)
 
         # remove last block and repeat
         ciphertext = ciphertext[:-blocklen]
@@ -159,12 +158,12 @@ def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16, verbose=False):
     """
 
     # initial values
-    my_pad = 'A'
-    plaintext = ''
-    ciphertext = encfunc('')
+    my_pad = int2byte(ord('A'))
+    plaintext = binary_type()
+    ciphertext = encfunc(binary_type())
 
     if prefixindex >= len(ciphertext):
-        return ''
+        return binary_type()
 
     prefixblock = prefixindex // blocklen
     indexinblock = prefixindex % blocklen
@@ -181,27 +180,27 @@ def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16, verbose=False):
 
         # try to guess the missing character
         for guess in range(256):
-            prefix = my_pad * (blocklen - indexinblock - 1 - i) + plaintext + chr(guess)
+            prefix = my_pad * (blocklen - indexinblock - 1 - i) + plaintext + int2byte(guess)
             guessciphertext = encfunc(prefix)
             guessblock = guessciphertext[(prefixblock * blocklen):((prefixblock + 1) * blocklen)]
             if guessblock == newblock:
-                plaintext += chr(guess)
+                plaintext += int2byte(guess)
                 break
 
-        # check if the plaintext has grown accordingly 
+        # check if the plaintext has grown accordingly
         if (len(plaintext) - 1) != i:
             # if it didn't we probably hit the padding at the end and we should stop
-            if prefixblock == len(ciphertext) / blocklen - 1 and plaintext[-1] == '\x01':
+            if prefixblock == len(ciphertext) / blocklen - 1 and indexbytes(plaintext, -1) == 0x01:
                 if verbose:
-                    print('Padding hit, we\'re done.')
+                    print_("Padding hit, we're done.")
                 plaintext = plaintext[:-1]
                 break
             else:
                 raise AssertionError('Something went wrong.')
 
         if verbose:
-            print('Block {}, index {}'.format(prefixblock, indexinblock + i))
-            print(plaintext)
+            print_('Block {}, index {}'.format(prefixblock, indexinblock + i))
+            print_(plaintext)
 
     # Part 2: following blocks
 
@@ -218,26 +217,26 @@ def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16, verbose=False):
 
             # try to guess the missing character
             for guess in range(256):
-                prefix = my_pad * (blocklen - 1 - i) + plaintext + chr(guess)
+                prefix = my_pad * (blocklen - 1 - i) + plaintext + int2byte(guess)
                 guessciphertext = encfunc(prefix)
                 guessblock = guessciphertext[(blockindex * blocklen):((blockindex + 1) * blocklen)]
                 if guessblock == newblock:
-                    plaintext += chr(guess)
+                    plaintext += int2byte(guess)
                     break
 
-            # check if the plaintext has grown accordingly 
+            # check if the plaintext has grown accordingly
             if (len(plaintext) + prefixindex - 1) % blocklen != i:
                 # if it didn't we probably hit the padding at the end and we should stop
-                if blockindex == len(ciphertext) / blocklen - 1 and plaintext[-1] == '\x01':
+                if blockindex == len(ciphertext) / blocklen - 1 and indexbytes(plaintext, -1) == 0x01:
                     if verbose:
-                        print('Padding hit, we\'re done.')
+                        print_("Padding hit, we're done.")
                     plaintext = plaintext[:-1]
                     break
                 else:
                     raise AssertionError('Something went wrong.')
 
             if verbose:
-                print('Block {}, index {}'.format(blockindex, i))
-                print(plaintext)
+                print_('Block {}, index {}'.format(blockindex, i))
+                print_(plaintext)
 
     return plaintext
