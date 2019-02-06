@@ -62,7 +62,7 @@ def unpad(s, blocklen):
     return s[:-padvalue]
 
 
-@pytest.mark.parametrize('seed', range(10))
+@pytest.mark.parametrize('seed', range(100))
 def test_cbc_findiv(seed):
     random.seed(seed)
 
@@ -77,7 +77,7 @@ def test_cbc_findiv(seed):
     assert aestools.cbc_findiv(decfunc, blocklen=16) == IV
 
 
-@pytest.mark.parametrize('seed', range(10))
+@pytest.mark.parametrize('seed', range(100))
 def test_cbc_paddingoracle(seed):
     random.seed(seed)
 
@@ -100,7 +100,7 @@ def test_cbc_paddingoracle(seed):
     assert res == pad(plaintext, blocklen=16)
 
 
-@pytest.mark.parametrize('seed', range(10))
+@pytest.mark.parametrize('seed', range(100))
 def test_ecb_chosenprefix(seed):
     random.seed(seed)
     # random 128 bits key
