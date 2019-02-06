@@ -22,26 +22,23 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# TODO fix bytes stuff
+from six import iterbytes, int2byte, next, binary_type
+from six import print_ as print
+from six.moves import range
 
-def xor_str(s1, s2):
-    '''XOR between two strings. The longer one is truncated.'''
-    return ''.join(chr(ord(x) ^ ord(y)) for x, y in zip(s1, s2))
-
-
-def blockify(text, blocklen):
-    '''Splits the text as a list of blocklen-long strings'''
-    return [text[i:i+blocklen] for i in xrange(0, len(text), blocklen)]
+from .utils import xor, blockify
 
 
 def cbc_flipiv(oldplain, newplain, iv):
-    '''Modifies an IV to produce the desired new plaintext in the following block'''
-    flipmask = xor_str(oldplain, newplain)
-    return xor_str(iv, flipmask)
+    """Modifies an IV to produce the desired new plaintext in the following block"""
+    flipmask = xor(oldplain, newplain)
+    return xor(iv, flipmask)
 
 
 def cbc_findiv(decfunc, blocklen=16, ciphblock=None):
-    '''Finds the IV used during an AES CBC decryption if it's not included in the ciphertext.
-    
+    """Finds the IV used during an AES CBC decryption if it's not included in the ciphertext.
+
     This is useful if the IV is fixed but unknown, or even better if the IV is used as key.
 
     Arguments:
@@ -50,7 +47,7 @@ def cbc_findiv(decfunc, blocklen=16, ciphblock=None):
         ciphblock -- a specific ciphertext block to use in the decryption step (default: 'A'*blocklen)
 
     Returns the IV used for the decryption.
-    '''
+    """
 
     if ciphblock:
         if len(ciphblock) != blocklen:
@@ -60,13 +57,13 @@ def cbc_findiv(decfunc, blocklen=16, ciphblock=None):
 
     ciphertext = ciphblock + '\x00' * blocklen + ciphblock
     plaintext = decfunc(ciphertext)
-    block1, _, block3 = blockify(plaintext, blocklen)   # block1 is P1, block3 is (P1 xor IV)
-    iv = xor_str(block1, block3)
+    block1, _, block3 = blockify(plaintext, blocklen)  # block1 is P1, block3 is (P1 xor IV)
+    iv = xor(block1, block3)
     return iv
 
 
 def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
-    '''An implementation of the padding oracle attack against AES CBC.
+    """An implementation of the padding oracle attack against AES CBC.
 
     NB: The algorithm assumes PKCS#7 padding.
 
@@ -77,7 +74,7 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
         verbose    -- print debug information if True (default: False)
 
     Returns the decrypted plaintext.
-    '''
+    """
 
     if len(ciphertext) % blocklen != 0:
         raise ValueError('The length of the ciphertext is not a multiple of the block length!')
@@ -93,15 +90,15 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
         # decrypted last block
         plainblock = ''
 
-        for i in xrange(1, blocklen + 1):
+        for i in range(1, blocklen + 1):
             found = []
-            for guess in xrange(256):
+            for guess in range(256):
                 # take next to last block
                 newblock = ciphertext[(-2 * blocklen):-blocklen]
                 # try to null out the decrypted last block
-                newblock = xor_str(newblock, (chr(guess) + plainblock).rjust(blocklen))
+                newblock = xor(newblock, (chr(guess) + plainblock).rjust(blocklen))
                 # the result should be padded correctly
-                newblock = xor_str(newblock, (chr(i) * i).rjust(blocklen))
+                newblock = xor(newblock, (chr(i) * i).rjust(blocklen))
                 # if the padding is correct
                 if oraclefunc(ciphertext[:(-2 * blocklen)] + newblock + ciphertext[-blocklen:]):
                     # add guess to possible candidates
@@ -109,11 +106,12 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
 
             # spurious results can be found if the previous character is between 0x1 and 0x10
             # check which guess is wrong by changing the previous character
+            good_guess = None
             if i != blocklen:
                 for guess in found:
                     newblock = ciphertext[(-2 * blocklen):-blocklen]
-                    newblock = xor_str(newblock, ('\x80' + chr(guess) + plainblock).rjust(blocklen))
-                    newblock = xor_str(newblock, (chr(i) * i).rjust(blocklen))
+                    newblock = xor(newblock, ('\x80' + chr(guess) + plainblock).rjust(blocklen))
+                    newblock = xor(newblock, (chr(i) * i).rjust(blocklen))
                     if oraclefunc(ciphertext[:(-2 * blocklen)] + newblock + ciphertext[-blocklen:]):
                         good_guess = guess
                         break
@@ -122,19 +120,22 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
                 assert len(found) == 1
                 good_guess = found[0]
 
+            if good_guess is None:
+                raise AssertionError('Something went wrong.')
+
             # update known plaintext
             plainblock = chr(good_guess) + plainblock
 
             if verbose:
-                print 'Block {}, index {}'.format(len(plaintext)/blocklen, i)
-                print plainblock.encode('hex')
+                print('Block {}, index {}'.format(len(plaintext) / blocklen, i))
+                print(plainblock.encode('hex'))
 
         # update plaintext
         plaintext = plainblock + plaintext
 
         if verbose:
-            print 'Result so far:'
-            print plaintext
+            print('Result so far:')
+            print(plaintext)
 
         # remove last block and repeat
         ciphertext = ciphertext[:-blocklen]
@@ -143,7 +144,7 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
 
 
 def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16, verbose=False):
-    '''An implementation of the chosen prefix attack against AES ECB.
+    """An implementation of the chosen prefix attack against AES ECB.
 
     This attack assumes that the attacker can insert an arbitrary string in the plaintext, and has access to an oracle encryption function which can provide the corresponding ciphertext.
     NB: the attack can only decrypt the plaintext that follows the prefix.
@@ -155,32 +156,32 @@ def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16, verbose=False):
         verbose     -- print debug information if True (default: False)
 
     Returns the decrypted plaintext (the part after prefixindex).
-    '''
+    """
 
     # initial values
-    PAD = 'A'
+    my_pad = 'A'
     plaintext = ''
     ciphertext = encfunc('')
 
     if prefixindex >= len(ciphertext):
         return ''
 
-    prefixblock = prefixindex / blocklen
+    prefixblock = prefixindex // blocklen
     indexinblock = prefixindex % blocklen
 
     # Part 1: block where the prefix starts
 
     # for each character in the prefix block after prefixindex
-    for i in xrange(blocklen - indexinblock):
+    for i in range(blocklen - indexinblock):
 
         # get ciphertext block containing a prefix we know and the next missing character
-        prefix = PAD * (blocklen - indexinblock - 1 - i)
+        prefix = my_pad * (blocklen - indexinblock - 1 - i)
         newciphertext = encfunc(prefix)
         newblock = newciphertext[(prefixblock * blocklen):((prefixblock + 1) * blocklen)]
 
         # try to guess the missing character
-        for guess in xrange(256):
-            prefix = PAD * (blocklen - indexinblock - 1 - i) + plaintext + chr(guess)
+        for guess in range(256):
+            prefix = my_pad * (blocklen - indexinblock - 1 - i) + plaintext + chr(guess)
             guessciphertext = encfunc(prefix)
             guessblock = guessciphertext[(prefixblock * blocklen):((prefixblock + 1) * blocklen)]
             if guessblock == newblock:
@@ -192,32 +193,32 @@ def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16, verbose=False):
             # if it didn't we probably hit the padding at the end and we should stop
             if prefixblock == len(ciphertext) / blocklen - 1 and plaintext[-1] == '\x01':
                 if verbose:
-                    print 'Padding hit, we\'re done.'
+                    print('Padding hit, we\'re done.')
                 plaintext = plaintext[:-1]
                 break
             else:
                 raise AssertionError('Something went wrong.')
 
         if verbose:
-            print 'Block {}, index {}'.format(prefixblock, indexinblock + i)
-            print plaintext
+            print('Block {}, index {}'.format(prefixblock, indexinblock + i))
+            print(plaintext)
 
     # Part 2: following blocks
 
     # for each block after the prefixblock
-    for blockindex in xrange(prefixblock + 1, len(ciphertext) / blocklen):
+    for blockindex in range(prefixblock + 1, len(ciphertext) // blocklen):
 
         # for each character in the block
-        for i in xrange(blocklen):
+        for i in range(blocklen):
 
             # get ciphertext block containing a prefix we know and the next missing character
-            prefix = PAD * (blocklen - 1 - i)
+            prefix = my_pad * (blocklen - 1 - i)
             newciphertext = encfunc(prefix)
             newblock = newciphertext[(blockindex * blocklen):((blockindex + 1) * blocklen)]
 
             # try to guess the missing character
-            for guess in xrange(256):
-                prefix = PAD * (blocklen - 1 - i) + plaintext + chr(guess)
+            for guess in range(256):
+                prefix = my_pad * (blocklen - 1 - i) + plaintext + chr(guess)
                 guessciphertext = encfunc(prefix)
                 guessblock = guessciphertext[(blockindex * blocklen):((blockindex + 1) * blocklen)]
                 if guessblock == newblock:
@@ -229,14 +230,14 @@ def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16, verbose=False):
                 # if it didn't we probably hit the padding at the end and we should stop
                 if blockindex == len(ciphertext) / blocklen - 1 and plaintext[-1] == '\x01':
                     if verbose:
-                        print 'Padding hit, we\'re done.'
+                        print('Padding hit, we\'re done.')
                     plaintext = plaintext[:-1]
                     break
                 else:
                     raise AssertionError('Something went wrong.')
 
             if verbose:
-                print 'Block {}, index {}'.format(blockindex, i)
-                print plaintext
+                print('Block {}, index {}'.format(blockindex, i))
+                print(plaintext)
 
     return plaintext

@@ -22,123 +22,86 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import itertools
-import string
 import math
 import ast
+import itertools
+
+from six import iterbytes, int2byte, next, binary_type
+from six import print_ as print
+from six.moves import range, filter, input
+from .utils import xor, blockify, columnify
+
+LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+DIGITS = '0123456789'
+PUNCTUATION = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'
+PRINTABLE = LETTERS + DIGITS + PUNCTUATION + ' \t\n\r\x0b\x0c'
 
 
-def str2bytes(s):
-    return b''.join(ord(char).to_bytes(1, 'little') for char in s)
-
-def bytes2str(b):
-    return ''.join(chr(x) for x in b)
-
-
-def xor_str(s1, s2):
-    '''XOR between two strings. The longer one is truncated.'''
-    return ''.join(chr(ord(x) ^ ord(y)) for x, y in zip(s1, s2))
-
-
-def blockify(text, blocklen):
-    '''Splits the text as a list of blocklen-long strings'''
-    return [text[i:i+blocklen] for i in range(0, len(text), blocklen)]
-
-
-def columnify(ciphertext, keylen, fill=False):
-    '''Takes the ciphertext and collects the characters corresponding to each key position.
-    
-    Arguments:
-        ciphertext -- the ciphertext as a string
-        keylen     -- the length of the xor key
-        fill       -- if True all the lists of characters will 
-                      be filled with None to have the same length (default False)
-
-    Returns a list of lists of characters.
-    '''
-    
-    # split ciphertext in blocks
-    blocks = blockify(ciphertext, keylen)
-
-    # build list of lists
-    result = [list(tup) for tup in itertools.zip_longest(*blocks)]
-
-    # remove Nones
-    if not fill:
-        for l in result:
-            if None in l:
-                l.remove(None)    # at most one None
-
-    return result
-
-
-def hamming_distance(s1, s2):
-    '''Returns the Hamming Distance between two strings of equal length.'''
-    assert len(s1) == len(s2)
+def hamming_distance(a, b):
+    """Returns the Hamming Distance between two byte arrays of equal length."""
+    assert len(a) == len(b)
     distance = 0
-    for char1, char2 in zip(s1, s2):
-        byte1 = ord(char1)
-        byte2 = ord(char2)
+    for byte1, byte2 in zip(iterbytes(a), iterbytes(b)):
         diff = byte1 ^ byte2
-        distance += sum(int(bit, 2) for bit in bin(diff)[2:])
+        distance += sum((diff >> i) & 1 for i in range(8))
     return distance
 
 
 def egcd(a, b):
-    '''Euclidean Greatest Common Divisor'''
+    """Computes the Euclidean Greatest Common Divisor"""
     if a == 0:
-        return (b, 0, 1)
+        return b, 0, 1
     else:
         g, y, x = egcd(b % a, a)
-        return (g, x - (b // a) * y, y)
+        return g, x - (b // a) * y, y
 
 
 # TODO increase score if actual english words are found
 def englishscore(text):
-    '''Estimates how close the string is to a readable piece of english text.
+    """Estimates how close the string is to a readable piece of english text.
 
     Returns the score for the text as a number (higher is better).
-    '''
-
+    """
+    # english letter distribution
+    english_distribution = {'a': 8.167, 'b': 1.492, 'c': 2.782, 'd': 4.253, 'e': 12.702, 'f': 2.228, 'g': 2.015,
+                            'h': 6.094, 'i': 6.966, 'j': 0.153, 'k': 0.772, 'l': 4.025, 'm': 2.406, 'n': 6.749,
+                            'o': 7.507, 'p': 1.929, 'q': 0.095, 'r': 5.987, 's': 6.327, 't': 9.056, 'u': 2.758,
+                            'v': 0.978, 'w': 2.360, 'x': 0.150, 'y': 1.974, 'z': 0.074}
     score = 0
 
     # raise or decrease score based on the type of characters present
+    # arbitrary scores, could be better
     for c in text:
-        if c in string.letters:
+        if c in LETTERS:
             score += 1
         elif c == ' ':
             score += 0.8
-        elif c in string.digits:
+        elif c in DIGITS:
             score += 0.5
-        elif c in string.punctuation:
+        elif c in PUNCTUATION:
             score += 0.2
-        elif c not in string.printable:
+        elif c not in PRINTABLE:
             score -= 10
 
     # next, do some frequency analysis to compare strings with the same number of letters
     # we will only use the letters
-    text_letters = filter(lambda c: c in string.letters, text)
+    text_letters = ''.join(filter(lambda c: c in LETTERS, text))
     text_letters = text_letters.lower()
-
     if len(text_letters) > 0:
-
-        # english letter distribution
-        my_distribution = {'a': 8.167, 'b': 1.492, 'c': 2.782, 'd': 4.253, 'e': 12.702, 'f': 2.228, 'g': 2.015, 'h': 6.094, 'i': 6.966, 'j': 0.153, 'k': 0.772, 'l': 4.025, 'm': 2.406, 'n': 6.749, 'o': 7.507, 'p': 1.929, 'q': 0.095, 'r': 5.987, 's': 6.327, 't': 9.056, 'u': 2.758, 'v': 0.978, 'w': 2.360, 'x': 0.150, 'y': 1.974, 'z': 0.074}
-
         # normalize
-        totalsum = sum(my_distribution.values())
+        totalsum = sum(english_distribution.values())
         distribution = {}
-        for letter in my_distribution:
-            distribution[letter] = my_distribution[letter] / totalsum
+        for letter in english_distribution:
+            distribution[letter] = english_distribution[letter] / totalsum
 
         # compute distribution for every character
         textlen = len(text_letters)
         textdist = {}
         for x in text_letters:
             if x in textdist:
-                textdist[x] += 1 / textlen
+                textdist[x] += 1.0 / textlen
             else:
-                textdist[x] = 1 / textlen
+                textdist[x] = 1.0 / textlen
 
         # compute Pearson chi-squared statistic
         chi2 = 0
@@ -152,40 +115,40 @@ def englishscore(text):
         if chi2 <= 1:
             bonus = 1
         else:
-            bonus = 1 / chi2
-
+            bonus = 1.0 / chi2
         score += bonus
 
     return score
 
 
 def findkeylen_all(ciphertext, maxcompperlen=100, verbose=False):
-    '''Determines the length of a repeated xor key given a ciphertext.
-    
+    """Determines the length of a repeated xor key given a ciphertext.
+
     The algorithm works using the Normalized Hamming Distance.
 
     Arguments:
-        ciphertext    -- the ciphertext as a string
+        ciphertext    -- the ciphertext as a byte array
         maxcompperlen -- the maximum number of comparisons between blocks that will be performed for each candidate length
         verbose       -- print debug information if True
 
     Returns all the possible key lengths and their respective score as a list of (length, score) tuples.
     The list is ordered from the best to the worst score (lower is better).
-    '''
-    
+    """
+    # TODO rethink the number of comparisons, this takes far too much time, also doesn't scale with length
+
     len_score_list = []
 
     # try every useful length
-    for keylen in range(1, len(ciphertext)/2 + 1):
+    for keylen in range(1, len(ciphertext) // 2 + 1):
         if verbose:
-            print('Checking key length ' + str(keylen))
+            print('Checking key length {}'.format(keylen))
 
         # split in blocks
         blocks = blockify(ciphertext, keylen)
 
         # keep only full-length blocks 
         blocks = filter(lambda b: len(b) == keylen, blocks)
-        
+
         # get hamming distance of each block with every other block
         total_distance = 0
         n_comparisons = 0
@@ -206,23 +169,24 @@ def findkeylen_all(ciphertext, maxcompperlen=100, verbose=False):
 
 
 def findkeylen(ciphertext, topn=7, maxcompperlen=100, verbose=False):
-    '''Determines the length of a repeated xor key given a ciphertext.
+    """Determines the length of a repeated xor key given a ciphertext.
 
     Takes the greatest common divisor of the most probable candidates, because multiples of the actual key length often get better scores.
     (see also https://trustedsignal.blogspot.it/2015/06/xord-play-normalized-hamming-distance.html)
     NB: this works best when the characters of the key are very different from one another.
 
     Arguments:
-        ciphertext    -- the ciphertext as a string
+        ciphertext    -- the ciphertext as a byte array
         topn          -- the number of candidate lengths to consider in the gcd step
         maxcompperlen -- the maximum number of comparisons between blocks that will be performed for each candidate length
         verbose       -- print debug information if True
 
     Returns the most probable key length.
-    '''
+    """
+    # TODO rethink the number of comparisons, this takes far too much time, also doesn't scale with length
 
-    TOPN = topn    # number of top candidates to consider for the gcd step
-    
+    TOPN = topn  # number of top candidates to consider for the gcd step
+
     if verbose:
         print('Collecting key length candidates...')
     len_score_list = findkeylen_all(ciphertext, maxcompperlen=maxcompperlen, verbose=verbose)
@@ -243,26 +207,26 @@ def findkeylen(ciphertext, topn=7, maxcompperlen=100, verbose=False):
     return max(gcd_occurences.keys(), key=(lambda k: gcd_occurences[k]))
 
 
-def findkeychars(ciphertext, keylen=None, charset=string.printable, decfunc=xor_str, verbose=False):
-    '''Finds all possible characters for each key index given a set of characters that can appear in the plaintext.
+def findkeychars(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=False):
+    """Finds all possible characters for each key index given a set of characters that can appear in the plaintext.
 
     This function assumes a polyalphabetic substition cipher is used.
 
     Arguments:
-        ciphertext -- the ciphertext as a string
+        ciphertext -- the ciphertext as a byte array
         charset    -- a string containing all the characters that can be found in the plaintext (default: all printable characters)
         keylen     -- the length of the key (default: found using findkeylen)
         decfunc    -- a function that takes a character of ciphertext and a character of key and returns a character of plaintext (default: xor)
         verbose    -- print debug information if True (default: False)
     Returns a list of lists of characters, one list for each key index.
-    '''
+    """
 
     if keylen is None:
         if verbose:
             print('Finding key length...')
         keylen = findkeylen(ciphertext, verbose=verbose)
         if verbose:
-            print('Key length = ' + str(keylen))
+            print('Key length = {}'.format(keylen))
 
     columns = columnify(ciphertext, keylen)
 
@@ -274,17 +238,21 @@ def findkeychars(ciphertext, keylen=None, charset=string.printable, decfunc=xor_
         if verbose:
             print('Checking column ' + str(i))
         # list of acceptable values for this key index
-        good_chars = [chr(x) for x in range(256)]
+        good_chars = [int2byte(x) for x in range(256)]
         for char in column:
             # find values of key that map to an acceptable plaintext
-            ok_set = [chr(k) for k in range(256) if (decfunc(char, chr(k)) in charset)]
+            ok_set = [int2byte(k) for k in range(256) if (decfunc(char, int2byte(k)) in charset)]
             # take intersection with previous acceptable values
             good_chars = filter((lambda e: e in ok_set), good_chars)
 
         # order good_chars by closeness to the english character distribution
         if verbose:
             print('Sorting characters by score...')
-        fitnessfunc = lambda k: englishscore(''.join(decfunc(c, k) for c in column))
+        def fitnessfunc(k):
+            dec = binary_type()
+            for c in column:
+                dec += int2byte(decfunc(c, k))
+            return englishscore(dec)
         best_char = sorted(good_chars, key=fitnessfunc)[::-1]
 
         if verbose:
@@ -297,62 +265,63 @@ def findkeychars(ciphertext, keylen=None, charset=string.printable, decfunc=xor_
     return result
 
 
-def findkeys(ciphertext, keylen=None, charset=string.printable, decfunc=xor_str, verbose=False):
-    '''Finds all possible keys given a set of characters that can appear in the ciphertext.
+def findkeys(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=False):
+    """Finds all possible keys given a set of characters that can appear in the ciphertext.
 
     This function assumes a substition cipher is used. (char by char)
 
     Arguments:
-        ciphertext -- the ciphertext as a string
+        ciphertext -- the ciphertext as a byte array
         charset    -- a string containing all the characters that can be found in the plaintext (default: all printable characters)
         keylen     -- the length of the key (default: found using findkeylen)
         decfunc    -- a function that takes a character of ciphertext and a character of key and returns a character of plaintext (default: xor)
         verbose    -- print debug information if True (default: False)
 
     Returns a generator that yields keys as strings.
-    '''
+    """
 
     char_list = findkeychars(ciphertext, keylen, charset, decfunc, verbose)
 
     def key_generator(iter_prod):
-        while True:    # stop when iter_prod raises StopIteration
-            yield ''.join(iter_prod.__next__())
+        while True:  # stop when iter_prod raises StopIteration
+            yield ''.join(next(iter_prod))
 
     return key_generator(itertools.product(*char_list))
 
 
-def findkey(ciphertext, keylen=None, charset=string.printable, decfunc=xor_str, verbose=False):
-    '''A wrapper to get the first, most probable key from findkeys()'''
+def findkey(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=False):
+    """A wrapper to get the first, most probable key from findkeys()"""
 
     try:
-        findkeys(ciphertext, keylen, charset, decfunc, verbose).__next__()
+        result = next(findkeys(ciphertext, keylen, charset, decfunc, verbose))
         if verbose:
-            print('Key:', result)
+            print('Key: {}'.format(result))
     except StopIteration:
         result = None
         if verbose:
-            print('Couldn\'t find key!')
+            print("No key found!")
 
     return result
 
 
 # TODO: add option to find all indexes such that the crib only decrypts in a specified charset
-def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
-    '''Starts an interactive cribdrag session.
+# TODO: refactor as a class, this is horrible
+def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
+    """Starts an interactive cribdrag session.
 
     This function assumes a polyalphabetic substition cipher is used.
 
     Arguments:
-        ciphertext -- the ciphertext as a string
+        ciphertext -- the ciphertext as a byte array
         keylen     -- the length of the key
         decfunc    -- a function that takes a character of ciphertext and a character of key and returns a character of plaintext (default: xor)
         keyfunc    -- a function that takes a character of ciphertext and a character of plaintext and returns a character of key (default: same as decfunc)
 
     Returns the state of the key at the end of the session as a list of characters and None.
-    '''
+    """
 
     def print_lines(blocks, cribindex, criblen):
-        '''Print blocks line by line'''
+        """Print blocks line by line"""
         blocklen = len(blocks[0])
         pad = int(math.log(blocklen * len(blocks), 10))
         for i in range(len(blocks)):
@@ -370,7 +339,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
             print(line)
 
     def getkey(ciphertext, keylen, crib, cribindex, keyfunc):
-        '''Find the key corresponding to a crib at position cribindex'''
+        """Find the key corresponding to a crib at position cribindex"""
         key = [None] * keylen
         for i in range(len(crib)):
             keychar = keyfunc(ciphertext[cribindex + i], crib[i])
@@ -378,7 +347,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
         return key
 
     def decrypt(ciphertext, key, decfunc):
-        '''Decrypt the ciphertext with key, unknown bytes are replaced with "*"'''
+        """Decrypt the ciphertext with key, unknown bytes are replaced with '*'"""
         res = ''
         for i in range(len(ciphertext)):
             if key[i % keylen] is None:
@@ -388,8 +357,8 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
         return res
 
     def update_and_print():
-        '''Update key with current crib and print result'''
-        
+        """Update key with current crib and print result"""
+
         # empty curr_key
         del curr_key[:]
         # update curr_key
@@ -411,7 +380,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
         print('New key: {}'.format(curr_key))
 
     def prompt(prevchoice, prevarg):
-        userinput = raw_input('> ')
+        userinput = input('> ')
         userinput = userinput.lstrip()
         if userinput == '':
             return prevchoice, prevarg
@@ -432,9 +401,9 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
     # prompt
     choice, argument = prompt('h', '')
 
-    while (choice != 'q' and choice != 'quit'):
+    while choice != 'q' and choice != 'quit':
 
-        if (choice == 'h' or choice == 'help'):
+        if choice == 'h' or choice == 'help':
             guide = ''
             guide += 'Commands:\n'
             guide += '  (c)rib <your_crib> -- set the crib (argument is like \"asdf\\x10\\n jkl\")\n'
@@ -449,7 +418,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
             guide += '  (h)elp -- show this guide\n'
             print(guide)
 
-        elif (choice == 'c' or choice == 'crib'):
+        elif choice == 'c' or choice == 'crib':
             # remove spaces from sides
             argument = argument.strip()
             if argument == '':
@@ -459,7 +428,8 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
                 if type(newcrib) != str:
                     print('The crib must be a string!')
                 elif len(newcrib) > keylen:
-                    print('The crib {} is longer than the key! The maximum allowed length is {}.'.format(newcrib, keylen))
+                    print(
+                        'The crib {} is longer than the key! The maximum allowed length is {}.'.format(newcrib, keylen))
                 else:
                     # set crib
                     crib = newcrib
@@ -471,7 +441,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
                 print('The command should be called like this:')
                 print('  crib \"as\\\"df\\x10\\n jkl\"')
 
-        elif (choice == 'n' or choice == 'next'):
+        elif choice == 'n' or choice == 'next':
             if crib == '':
                 print('You need to set a crib.')
             elif cribindex == (len(ciphertext) - len(crib)):
@@ -480,7 +450,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
                 cribindex += 1
                 update_and_print()
 
-        elif (choice == 'p' or choice == 'prev'):
+        elif choice == 'p' or choice == 'prev':
             if crib == '':
                 print('You need to set a crib.')
             elif cribindex == 0:
@@ -489,7 +459,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
                 cribindex -= 1
                 update_and_print()
 
-        elif (choice == 'j' or choice == 'jump'):
+        elif choice == 'j' or choice == 'jump':
             if crib == '':
                 print('You need to set a crib.')
             else:
@@ -506,15 +476,15 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
 
                 except ValueError:
                     'Error: {} is not a valid number'
-            
-        elif (choice == 'o' or choice == 'ok'):
+
+        elif choice == 'o' or choice == 'ok':
             # update global key
             cribkey = getkey(ciphertext, keylen, crib, cribindex, keyfunc)
             newkey = []
             for i in range(keylen):
-                if cribkey[i] != None:
+                if cribkey[i] is not None:
                     newkey.append(cribkey[i])
-                elif key[i] != None:
+                elif key[i] is not None:
                     newkey.append(key[i])
                 else:
                     newkey.append(None)
@@ -526,7 +496,7 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
             print('Key updated: {}'.format(key))
             print('Crib reset.')
 
-        elif (choice == 'k' or choice == 'key'):
+        elif choice == 'k' or choice == 'key':
             # remove spaces from sides
             argument = argument.strip()
             try:
@@ -547,10 +517,10 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
                 print('The command should be called like this:')
                 print('  key [\'a\', \'\\x01\', None, \'\\n\']')
 
-        elif (choice == 's' or choice == 'show'):
+        elif choice == 's' or choice == 'show':
             print(decrypt(ciphertext, key, decfunc))
 
-        elif (choice == 'r' or choice == 'reset'):
+        elif choice == 'r' or choice == 'reset':
             crib = ''
             cribindex = 0
             key = [None] * keylen
@@ -566,25 +536,26 @@ def cribdrag(ciphertext, keylen, decfunc=xor_str, keyfunc=None):
     return key
 
 
-def keyinplaintext(ciphertext, keylen, keyindex, seed, seedindex, decfunc=xor_str, keyfunc=None):
-    '''Solves the case when the key used to encrypt is embedded in the plaintext itself.
+def keyinplaintext(ciphertext, keylen, keyindex, seed, seedindex, decfunc=xor, keyfunc=None):
+    """Solves the case when the key used to encrypt is embedded in the plaintext itself.
 
     This function assumes a polyalphabetic substition cipher is used.
 
     Arguments:
-        ciphertext -- the ciphertext as a string
+        ciphertext -- the ciphertext as a byte array
         keylen     -- the key length
         keyindex   -- the position of the key in the plaintext
         seed       -- a single known character in the plaintext
         seedindex  -- the position of the seed in the plaintext
-        decfunc    -- a function that takes a character of ciphertext and a character of key and returns a character of plaintext (default: xor)
-        keyfunc    -- a function that takes a character of ciphertext and a character of plaintext and returns a character of key (default: same as decfunc)
+        decfunc    -- a function that takes a character of ciphertext and a character of key, and returns a character of plaintext (default: xor)
+        keyfunc    -- a function that takes a character of ciphertext and a character of plaintext, and returns a character of key (default: same as decfunc)
 
     Returns the  key.
-    '''
+    """
 
     if keyindex % keylen == 0:
-        raise ValueError("The key in the plaintext is in the same position as the key used when encrypting. Impossible to solve")
+        raise ValueError(
+            "The key in the plaintext is in the same position as the key used when encrypting. Impossible to solve")
 
     # initial parameters
     if keyfunc is None:
@@ -600,6 +571,6 @@ def keyinplaintext(ciphertext, keylen, keyindex, seed, seedindex, decfunc=xor_st
                 newkey[(i + keyindex) % keylen] = decfunc(ciphertext[keyindex + i], key[i])
         key = newkey[:]
 
-    assert not None in key
+    assert None not in key
 
     return ''.join(key)
