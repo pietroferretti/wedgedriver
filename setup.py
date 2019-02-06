@@ -22,11 +22,6 @@ setuptools.setup(
     extras_require={
         'tests': ['pytest', 'pycrypto']
     },
-    # entry_points={
-    #     'pytest11': [
-    #         'tox_tested_package = tox_tested_package.fixtures',
-    #     ]
-    # },
     classifiers=[
         "Development Status :: 4 - Beta",
         "Programming Language :: Python :: 2",
