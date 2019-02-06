@@ -25,7 +25,7 @@
 import math
 import ast
 import itertools
-import enchant
+import pkg_resources
 
 from six import iterbytes, int2byte, byte2int, unichr, next, binary_type, b, print_
 from six.moves import range, filter, input
@@ -36,7 +36,8 @@ DIGITS = b('0123456789')
 PUNCTUATION = b('!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~')
 PRINTABLE = LETTERS + DIGITS + PUNCTUATION + b(' \t\n\r\x0b\x0c')
 
-ENGLISH_DICTIONARY = enchant.Dict('en_US')
+with open(pkg_resources.resource_filename('ctftools', 'data/english_words.txt')) as f:
+    ENGLISH_DICTIONARY = set(f.read().split('\n'))
 ENGLISH_DISTRIBUTION = {b'a': 8.167, b'b': 1.492, b'c': 2.782, b'd': 4.253, b'e': 12.702, b'f': 2.228, b'g': 2.015,
                         b'h': 6.094, b'i': 6.966, b'j': 0.153, b'k': 0.772, b'l': 4.025, b'm': 2.406, b'n': 6.749,
                         b'o': 7.507, b'p': 1.929, b'q': 0.095, b'r': 5.987, b's': 6.327, b't': 9.056, b'u': 2.758,
@@ -139,7 +140,7 @@ def dictionary_score(text):
             text_words += b(' ')
     words = text_words.split(b(' '))
     for word in words:
-        if len(word) >= 5 and ENGLISH_DICTIONARY.check(bytes2unic(word)):
+        if len(word) >= 5 and bytes2unic(word) in ENGLISH_DICTIONARY:
             score += len(word)
     return score
 

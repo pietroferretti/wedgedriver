@@ -17,8 +17,9 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/pietroferretti/ctftools",
     license='MIT',
-    packages=setuptools.find_packages(exclude=['tests']),
-    install_requires=['six', 'PyEnchant'],
+    packages=setuptools.find_packages(exclude=['tests', 'data']),
+    package_data={'ctftools': ['data/english_words.txt']},
+    install_requires=['six'],
     extras_require={
         'tests': ['pytest', 'pycrypto']
     },
