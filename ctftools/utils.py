@@ -22,8 +22,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from six import binary_type, int2byte, iterbytes
+from six import binary_type, int2byte, iterbytes, indexbytes
 from six.moves import zip, zip_longest
+
+
+def index1byte(bytearr, i):
+    return int2byte(indexbytes(bytearr, i))
 
 
 def xor(a, b):

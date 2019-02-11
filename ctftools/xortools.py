@@ -27,9 +27,9 @@ import ast
 import itertools
 import pkg_resources
 
-from six import iterbytes, int2byte, byte2int, unichr, next, binary_type, b, print_
+from six import iterbytes, int2byte, unichr, next, binary_type, b, print_
 from six.moves import range, filter, input
-from .utils import xor, blockify, columnify
+from .utils import xor, blockify, columnify, index1byte
 
 LETTERS = b('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')
 DIGITS = b('0123456789')
@@ -145,7 +145,7 @@ def dictionary_score(text):
     return score
 
 
-def findkeylen_all(ciphertext, maxcompperlen=100, verbose=False):
+def findkeylen_all(ciphertext, maxcompperlen=1000000, verbose=False):
     """Determines the length of a repeated xor key given a ciphertext.
 
     The algorithm works using the Normalized Hamming Distance.
@@ -158,7 +158,6 @@ def findkeylen_all(ciphertext, maxcompperlen=100, verbose=False):
     Returns all the possible key lengths and their respective score as a list of (length, score) tuples.
     The list is ordered from the best to the worst score (lower is better).
     """
-    # TODO rethink the number of comparisons, this takes far too much time, also doesn't scale with length
 
     len_score_list = []
 
@@ -192,7 +191,7 @@ def findkeylen_all(ciphertext, maxcompperlen=100, verbose=False):
     return result
 
 
-def findkeylen(ciphertext, topn=7, maxcompperlen=100, verbose=False):
+def findkeylen(ciphertext, topn=17, maxcompperlen=100, verbose=False):
     """Determines the length of a repeated xor key given a ciphertext.
 
     Takes the greatest common divisor of the most probable candidates, because multiples of the actual key length often get better scores.
@@ -207,14 +206,11 @@ def findkeylen(ciphertext, topn=7, maxcompperlen=100, verbose=False):
 
     Returns the most probable key length.
     """
-    # TODO rethink the number of comparisons, this takes far too much time, also doesn't scale with length
-
-    TOPN = topn  # number of top candidates to consider for the gcd step
 
     if verbose:
         print_('Collecting key length candidates...')
     len_score_list = findkeylen_all(ciphertext, maxcompperlen=maxcompperlen, verbose=verbose)
-    topn_lengths = [t[0] for t in len_score_list[:TOPN]]
+    topn_lengths = [t[0] for t in len_score_list[:topn]]
 
     if verbose:
         print_('Computing most common gcd...')
@@ -231,7 +227,7 @@ def findkeylen(ciphertext, topn=7, maxcompperlen=100, verbose=False):
     return max(gcd_occurences.keys(), key=(lambda k: gcd_occurences[k]))
 
 
-def findkeychars(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=False):
+def findkeychars(ciphertext, keylen, charset=PRINTABLE, decfunc=xor, verbose=False):
     """Finds all possible characters for each key index given a set of characters that can appear in the plaintext.
 
     This function assumes a polyalphabetic substition cipher is used.
@@ -244,13 +240,6 @@ def findkeychars(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbos
         verbose    -- print debug information if True (default: False)
     Returns a list of lists of characters, one list for each key index.
     """
-
-    if keylen is None:
-        if verbose:
-            print_('Finding key length...')
-        keylen = findkeylen(ciphertext, verbose=verbose)
-        if verbose:
-            print_('Key length = {}'.format(keylen))
 
     columns = columnify(ciphertext, keylen)
 
@@ -303,6 +292,13 @@ def findkeys(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fa
     Returns a generator that yields keys as strings.
     """
 
+    if keylen is None:
+        if verbose:
+            print_('Finding key length...')
+        keylen = findkeylen(ciphertext, verbose=verbose)
+        if verbose:
+            print_('Key length = {}'.format(keylen))
+
     char_list = findkeychars(ciphertext, keylen, charset, decfunc, verbose)
     repeats = (len(ciphertext) // keylen) + 1
 
@@ -319,9 +315,6 @@ def findkeys(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fa
         def candidate_score(key):
             return dictionary_score(decfunc(ciphertext, key*repeats))
         best_candidates.sort(key=candidate_score)
-        # best_candidates.reverse()
-        print(candidate_score(best_candidates[0]))
-        print(candidate_score(best_candidates[-1]))
 
         while best_candidates:
             yield best_candidates.pop()
@@ -334,7 +327,6 @@ def findkeys(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fa
 
 def findkey(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=False):
     """A wrapper to get the first, most probable key from findkeys()"""
-
     try:
         result = next(findkeys(ciphertext, keylen, charset, decfunc, verbose))
         if verbose:
@@ -343,7 +335,6 @@ def findkey(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fal
         result = None
         if verbose:
             print_("No key found!")
-
     return result
 
 
@@ -597,24 +588,26 @@ def keyinplaintext(ciphertext, keylen, keyindex, seed, seedindex, decfunc=xor, k
     Returns the  key.
     """
 
-    if keyindex % keylen == 0:
+    if egcd(keyindex, keylen) != 1:
         raise ValueError(
-            "The key in the plaintext is in the same position as the key used when encrypting. Impossible to solve")
+            "Impossible to solve.")
 
     # initial parameters
     if keyfunc is None:
         keyfunc = decfunc
     key = [None] * keylen
-    key[seedindex % keylen] = keyfunc(ciphertext[seedindex], seed)
+    key[seedindex % keylen] = keyfunc(index1byte(ciphertext, seedindex), seed)
 
     # iterate to find all the characters in the key
     for _ in range(keylen):
         newkey = key[:]
         for i in range(len(key)):
             if key[i] is not None:
-                newkey[(i + keyindex) % keylen] = decfunc(ciphertext[keyindex + i], key[i])
+                newkey[(i + keyindex) % keylen] = decfunc(index1byte(ciphertext, keyindex + i), key[i])
+                print(newkey)
         key = newkey[:]
 
+    print(key)
     assert None not in key
 
     return binary_type().join(key)

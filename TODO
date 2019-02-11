@@ -6,4 +6,6 @@ TODO:
 - tests for xortools
 - rsatools
 - coveralls integration
-- publish on PyPI
+- documentation!
+
+- riscrivere xortools con compatibilità 2/3 ha rovinato la parte buona: non possiamo fare indexing di liste generiche. va proprio rifatto il design da capo!

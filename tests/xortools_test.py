@@ -29,7 +29,7 @@ from ctftools.utils import xor
 import pytest
 import random
 
-from six import int2byte, byte2int, binary_type, indexbytes, iterbytes, b
+from six import int2byte, binary_type, indexbytes, b
 from six.moves import range
 
 
@@ -41,34 +41,100 @@ For twenty years the Dread Empress has ruled over the lands that were once the K
 Substitution ciphers can be compared with transposition ciphers. In a transposition cipher, the units of the plaintext are rearranged in a different and usually quite complex order, but the units themselves are left unchanged. By contrast, in a substitution cipher, the units of the plaintext are retained in the same sequence in the ciphertext, but the units themselves are altered. ''']
 
 
+def egcd(a, b):
+    """Computes the Euclidean Greatest Common Divisor"""
+    if a == 0:
+        return b, 0, 1
+    else:
+        g, y, x = egcd(b % a, a)
+        return g, x - (b // a) * y, y
+
+
 def random_bytes(n):
     return binary_type().join(int2byte(random.randrange(256)) for _ in range(n))
 
 
 @pytest.mark.parametrize('seed', range(10))
-def test_xor_repeated_key_known_length(seed):
+def test_xor_find_key_with_known_length(seed):
     random.seed(seed)
 
     # choose a random length
-    length = random.randrange(5, 20)
+    keylen = random.randrange(5, 20)
     # choose a random key
-    key = random_bytes(length)
+    key = random_bytes(keylen)
     for text in PLAINTEXTS:
         plaintext = b(text)
+        repeats = len(plaintext) // keylen + 1
         # encrypt with xor
-        ciphertext = xor(plaintext, key*(len(plaintext) // len(key) + 1))
+        ciphertext = xor(plaintext, key * repeats)
         # decrypt
-        my_key = xortools.findkey(ciphertext, keylen=length, decfunc=xor)
-        my_plain = xor(ciphertext, my_key*(len(plaintext) // len(key) + 1))
+        my_key = xortools.findkey(ciphertext, keylen=keylen, decfunc=xor)
+        my_plain = xor(ciphertext, my_key * repeats)
         assert plaintext == my_plain
 
 
-# TODO
-# find key length automatically
+@pytest.mark.parametrize('seed', range(10))
+def test_xor_find_key_length(seed):
+    random.seed(seed)
+    # choose a random length
+    keylen = random.randrange(5, 20)
+    # choose a random key
+    key = random_bytes(keylen)
+    for text in PLAINTEXTS:
+        plaintext = b(text)
+        repeats = len(plaintext) // keylen + 1
+        # encrypt with xor
+        ciphertext = xor(plaintext, key * repeats)
+        # find key length
+        my_length = xortools.findkeylen(ciphertext, maxcompperlen=1000)
+        assert keylen == my_length
+
+
+@pytest.mark.parametrize('seed', range(10, 20))
+def test_xor_find_key(seed):
+    random.seed(seed)
+    # choose a random length
+    keylen = random.randrange(5, 20)
+    # choose a random key
+    key = random_bytes(keylen)
+    for text in PLAINTEXTS:
+        plaintext = b(text)
+        repeats = len(plaintext) // keylen + 1
+        # encrypt with xor
+        ciphertext = xor(plaintext, key * repeats)
+        # decrypt
+        my_key = xortools.findkey(ciphertext, decfunc=xor)
+        my_plain = xor(ciphertext, my_key * repeats)
+        assert plaintext == my_plain
+
+
+@pytest.mark.parametrize('seed', range(10))
+def test_xor_key_in_plaintext(seed):
+    random.seed(seed)
+    # choose a random length
+    keylen = random.randrange(5, 20)
+    # choose a random key
+    key = random_bytes(keylen)
+    for text in PLAINTEXTS:
+        plaintext = b(text)
+        repeats = len(plaintext) // keylen + 1
+        # choose a random offset
+        offset = random.randrange(0, len(text) - keylen)
+        while egcd(keylen, offset)[0] != 1:
+            offset = random.randrange(0, len(text) - keylen)
+        # place key in plaintext
+        newtext = plaintext[:offset] + key + plaintext[offset+keylen:]
+        # get a single byte from the plaintext
+        seed_index = random.randrange(0, len(text))
+        seed = int2byte(indexbytes(newtext, seed_index))
+        # encrypt with xor
+        ciphertext = xor(newtext, key * repeats)
+        # decrypt
+        my_key = xortools.keyinplaintext(ciphertext, keylen, offset, seed, seed_index)
+        assert key == my_key
+
+
 
 # TODO
-# some other polyalphabetic substitution cipher
-
-# TODO
-# key in plaintext
+# some other polyalphabetic substitution cipher, for find_key
 
