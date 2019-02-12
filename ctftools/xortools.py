@@ -588,7 +588,7 @@ def keyinplaintext(ciphertext, keylen, keyindex, seed, seedindex, decfunc=xor, k
     Returns the  key.
     """
 
-    if egcd(keyindex, keylen) != 1:
+    if egcd(keyindex, keylen)[0] != 1:
         raise ValueError(
             "Impossible to solve.")
 
