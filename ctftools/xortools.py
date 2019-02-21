@@ -22,14 +22,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import math
-import ast
 import itertools
 import pkg_resources
 from itertools import cycle
 
 from six import iterbytes, int2byte, next, binary_type, b, print_
-from six.moves import range, filter, input
+from six.moves import range, filter
 from .utils import xor, blockify, columnify, index_one_byte, bytes2unic, iter_wrapper
 
 LETTERS = b('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')

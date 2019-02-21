@@ -10,6 +10,6 @@ install:
  - pip install -r requirements.txt
  - pip install .
 script:
- - pytest --cov=ctftools tests
+ - pytest --cov-config .coveragerc --cov=ctftools tests
 after-success:
  - coveralls
