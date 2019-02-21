@@ -9,7 +9,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setuptools.setup(
     name="ctftools",
-    version="0.1.1",
+    version="0.1.2",
     author="Pietro Ferretti",
     author_email="me@pietroferretti.com",
     description="A small collection of tools for solving CTF challenges",
