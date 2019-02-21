@@ -7,6 +7,9 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
+with open(path.join(here, "requirements.txt"), encoding="utf-8") as f:
+    requirements = f.read().strip().split('\n')
+
 setuptools.setup(
     name="ctftools",
     version="0.1.2",
@@ -19,7 +22,7 @@ setuptools.setup(
     license="MIT",
     packages=setuptools.find_packages(exclude=["tests", "data"]),
     package_data={"ctftools": ["data/english_words.txt"]},
-    install_requires=["six"],
+    install_requires=requirements,
     extras_require={
         "tests": ["pytest", "pycryptodome"]
     },
