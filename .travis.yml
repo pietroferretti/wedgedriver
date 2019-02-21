@@ -13,3 +13,5 @@ script:
  - pytest --cov-config .coveragerc --cov=ctftools tests
 after-success:
  - coveralls
+notifications:
+ webhooks: https://coveralls.io/webhook
