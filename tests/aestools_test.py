@@ -91,7 +91,7 @@ def test_cbc_paddingoracle(seed):
 
     # random plaintext
     length = random.randrange(10, 40)
-    plaintext = binary_type().join(int2byte(random.randrange(256)) for _ in range(length))
+    plaintext = random_bytes(length)
 
     cipher = AES.new(key, AES.MODE_CBC, IV=IV)
     ciphertext = IV + cipher.encrypt(pad(plaintext, blocklen=16))
@@ -112,7 +112,7 @@ def test_ecb_chosenprefix(seed):
 
     # random plaintext
     length = random.randrange(10, 40)
-    plaintext = binary_type().join(int2byte(random.randrange(256)) for _ in range(length))
+    plaintext = random_bytes(length)
 
     # random prefixindex
     prefixindex = random.randrange(length)

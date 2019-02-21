@@ -85,3 +85,12 @@ def columnify(ciphertext, keylen, fill=False):
             if None in l:
                 l.remove(None)  # at most one None
     return result
+
+
+def egcd(a, b):
+    """Computes the Euclidean Greatest Common Divisor"""
+    if a == 0:
+        return b, 0, 1
+    else:
+        g, y, x = egcd(b % a, a)
+        return g, x - (b // a) * y, y

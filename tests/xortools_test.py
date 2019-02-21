@@ -24,7 +24,7 @@
 # SOFTWARE.
 
 from ctftools import xortools
-from ctftools.utils import xor
+from ctftools.utils import xor, egcd
 
 import pytest
 import random
@@ -42,15 +42,6 @@ Since the start of the semester, I had been looking forward to the part of Mr. G
 For twenty years the Dread Empress has ruled over the lands that were once the Kingdom of Callow, but behind the scenes of this dawning golden age threats to the crown are rising. The nobles of the Wasteland, denied the power they crave, weave their plots behind pleasant smiles. In the north the Forever King eyes the ever-expanding borders of the Empire and ponders war. The greatest danger lies to the west, where the First Prince of Procer has finally claimed her throne: her people sundered, she wonders if a crusade might not be the way to secure her reign. Yet none of this matters, for in the heart of the conquered lands the most dangerous man alive sat across an orphan girl and offered her a knife. ''',
 '''In cryptography, a substitution cipher is a method of encrypting by which units of plaintext are replaced with ciphertext, according to a fixed system; the "units" may be single letters (the most common), pairs of letters, triplets of letters, mixtures of the above, and so forth. The receiver deciphers the text by performing the inverse substitution.
 Substitution ciphers can be compared with transposition ciphers. In a transposition cipher, the units of the plaintext are rearranged in a different and usually quite complex order, but the units themselves are left unchanged. By contrast, in a substitution cipher, the units of the plaintext are retained in the same sequence in the ciphertext, but the units themselves are altered. ''']
-
-
-def egcd(a, b):
-    """Computes the Euclidean Greatest Common Divisor"""
-    if a == 0:
-        return b, 0, 1
-    else:
-        g, y, x = egcd(b % a, a)
-        return g, x - (b // a) * y, y
 
 
 def random_bytes(n):
@@ -151,5 +142,3 @@ def test_polyalphabetic_substitution(seed):
         ct_as_list = ciphertext.split(b(';'))   # needs to be an iterator of the ciphertext "characters"
         my_key = xortools.findkey(ct_as_list, keylen=keylen, decfunc=ecxor_decrypt)
         assert key == my_key
-
-

@@ -21,7 +21,7 @@ setuptools.setup(
     package_data={"ctftools": ["data/english_words.txt"]},
     install_requires=["six"],
     extras_require={
-        "tests": ["pytest", "pycrypto"]
+        "tests": ["pytest", "pycryptodome"]
     },
     classifiers=[
         "Development Status :: 4 - Beta",
