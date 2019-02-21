@@ -1,4 +1,6 @@
 dist: xenial
+env:
+  - COVERALLS_PARALLEL=true
 language: python
 python:
   - "2.7"
@@ -6,12 +8,12 @@ python:
   - "3.6"
   - "3.7"
 install:
- - pip install pytest pycrypto pytest-cov coveralls
- - pip install -r requirements.txt
- - pip install .
+  - pip install pytest pycrypto pytest-cov coveralls
+  - pip install -r requirements.txt
+  - pip install .
 script:
- - pytest --cov-config .coveragerc --cov=ctftools tests
+  - pytest --cov-config .coveragerc --cov=ctftools tests
 after-success:
- - coveralls
+  - coveralls
 notifications:
- webhooks: https://coveralls.io/webhook
+  webhooks: https://coveralls.io/webhook
