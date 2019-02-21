@@ -26,10 +26,11 @@ import math
 import ast
 import itertools
 import pkg_resources
+from itertools import cycle
 
-from six import iterbytes, int2byte, unichr, next, binary_type, b, print_
+from six import iterbytes, int2byte, next, binary_type, b, print_
 from six.moves import range, filter, input
-from .utils import xor, blockify, columnify, index1byte
+from .utils import xor, blockify, columnify, index_one_byte, bytes2unic, iter_wrapper
 
 LETTERS = b('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')
 DIGITS = b('0123456789')
@@ -42,10 +43,6 @@ ENGLISH_DISTRIBUTION = {b'a': 8.167, b'b': 1.492, b'c': 2.782, b'd': 4.253, b'e'
                         b'h': 6.094, b'i': 6.966, b'j': 0.153, b'k': 0.772, b'l': 4.025, b'm': 2.406, b'n': 6.749,
                         b'o': 7.507, b'p': 1.929, b'q': 0.095, b'r': 5.987, b's': 6.327, b't': 9.056, b'u': 2.758,
                         b'v': 0.978, b'w': 2.360, b'x': 0.150, b'y': 1.974, b'z': 0.074}
-
-
-def bytes2unic(bytearr):
-    return ''.join(unichr(x) for x in iterbytes(bytearr))
 
 
 def hamming_distance(a, b):
@@ -252,9 +249,9 @@ def findkeychars(ciphertext, keylen, charset=PRINTABLE, decfunc=xor, verbose=Fal
             print_('Checking column ' + str(i))
         # list of acceptable values for this key index
         good_chars = [int2byte(x) for x in range(256)]
-        for char in iterbytes(column):
+        for elem in iter_wrapper(column):
             # find values of key that map to an acceptable plaintext
-            ok_set = [int2byte(k) for k in range(256) if (decfunc(int2byte(char), int2byte(k)) in charset)]
+            ok_set = [int2byte(k) for k in range(256) if (decfunc([elem], int2byte(k)) in charset)]
             # take intersection with previous acceptable values
             good_chars = filter((lambda e: e in ok_set), good_chars)
 
@@ -263,7 +260,7 @@ def findkeychars(ciphertext, keylen, charset=PRINTABLE, decfunc=xor, verbose=Fal
             print_('Sorting characters by score...')
 
         def fitnessfunc(k):
-            dec = binary_type().join(decfunc(int2byte(c), k) for c in iterbytes(column))
+            dec = binary_type().join(decfunc([elem], k) for elem in iter_wrapper(column))
             return englishscore(dec)
         best_char = sorted(good_chars, key=fitnessfunc)[::-1]
 
@@ -300,26 +297,37 @@ def findkeys(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fa
             print_('Key length = {}'.format(keylen))
 
     char_list = findkeychars(ciphertext, keylen, charset, decfunc, verbose)
-    repeats = (len(ciphertext) // keylen) + 1
 
     def key_generator(iter_prod):
-        while True:  # stop when iter_prod raises StopIteration
-            yield binary_type().join(next(iter_prod))
+        while True:
+            try:
+                yield binary_type().join(next(iter_prod))
+            except StopIteration:
+                return
 
     # extract first 100 keys, give priority to plaintexts with english words
     def generator_wrapper(key_gen):
         best_candidates = []
         for _ in range(100):
-            best_candidates.append(next(key_gen))
+            try:
+                best_candidates.append(next(key_gen))
+            except StopIteration:
+                break
 
         def candidate_score(key):
-            return dictionary_score(decfunc(ciphertext, key*repeats))
+            return dictionary_score(decfunc(ciphertext, cycle(key)))
         best_candidates.sort(key=candidate_score)
 
         while best_candidates:
-            yield best_candidates.pop()
+            try:
+                yield best_candidates.pop()
+            except StopIteration:
+                return
         while True:
-            yield next(key_gen)
+            try:
+                yield next(key_gen)
+            except StopIteration:
+                return
 
     # return key_generator(itertools.product(*char_list))
     return generator_wrapper(key_generator(itertools.product(*char_list)))
@@ -336,6 +344,48 @@ def findkey(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fal
         if verbose:
             print_("No key found!")
     return result
+
+
+def keyinplaintext(ciphertext, keylen, keyindex, seed, seedindex, decfunc=xor, keyfunc=None):
+    """Solves the case when the key used to encrypt is embedded in the plaintext itself.
+
+    This function assumes a polyalphabetic substition cipher is used.
+
+    Arguments:
+        ciphertext -- the ciphertext as a byte array
+        keylen     -- the key length
+        keyindex   -- the position of the key in the plaintext
+        seed       -- a single known character in the plaintext
+        seedindex  -- the position of the seed in the plaintext
+        decfunc    -- a function that takes a character of ciphertext and a character of key, and returns a character of plaintext (default: xor)
+        keyfunc    -- a function that takes a character of ciphertext and a character of plaintext, and returns a character of key (default: same as decfunc)
+
+    Returns the  key.
+    """
+
+    if egcd(keyindex, keylen)[0] != 1:
+        raise ValueError(
+            "Impossible to solve.")
+
+    # initial parameters
+    if keyfunc is None:
+        keyfunc = decfunc
+    key = [None] * keylen
+    key[seedindex % keylen] = keyfunc(index_one_byte(ciphertext, seedindex), seed)
+
+    # iterate to find all the characters in the key
+    for _ in range(keylen):
+        newkey = key[:]
+        for i in range(len(key)):
+            if key[i] is not None:
+                newkey[(i + keyindex) % keylen] = decfunc(index_one_byte(ciphertext, keyindex + i), key[i])
+                print(newkey)
+        key = newkey[:]
+
+    print(key)
+    assert None not in key
+
+    return binary_type().join(key)
 
 
 # TODO: add option to find all indexes such that the crib only decrypts in a specified charset
@@ -569,45 +619,3 @@ def cribdrag(ciphertext, keylen, decfunc=xor, keyfunc=None):
         choice, argument = prompt(choice, argument)
 
     return key
-
-
-def keyinplaintext(ciphertext, keylen, keyindex, seed, seedindex, decfunc=xor, keyfunc=None):
-    """Solves the case when the key used to encrypt is embedded in the plaintext itself.
-
-    This function assumes a polyalphabetic substition cipher is used.
-
-    Arguments:
-        ciphertext -- the ciphertext as a byte array
-        keylen     -- the key length
-        keyindex   -- the position of the key in the plaintext
-        seed       -- a single known character in the plaintext
-        seedindex  -- the position of the seed in the plaintext
-        decfunc    -- a function that takes a character of ciphertext and a character of key, and returns a character of plaintext (default: xor)
-        keyfunc    -- a function that takes a character of ciphertext and a character of plaintext, and returns a character of key (default: same as decfunc)
-
-    Returns the  key.
-    """
-
-    if egcd(keyindex, keylen)[0] != 1:
-        raise ValueError(
-            "Impossible to solve.")
-
-    # initial parameters
-    if keyfunc is None:
-        keyfunc = decfunc
-    key = [None] * keylen
-    key[seedindex % keylen] = keyfunc(index1byte(ciphertext, seedindex), seed)
-
-    # iterate to find all the characters in the key
-    for _ in range(keylen):
-        newkey = key[:]
-        for i in range(len(key)):
-            if key[i] is not None:
-                newkey[(i + keyindex) % keylen] = decfunc(index1byte(ciphertext, keyindex + i), key[i])
-                print(newkey)
-        key = newkey[:]
-
-    print(key)
-    assert None not in key
-
-    return binary_type().join(key)

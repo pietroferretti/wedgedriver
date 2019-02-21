@@ -22,12 +22,33 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from six import binary_type, int2byte, iterbytes, indexbytes
+from six import binary_type, int2byte, iterbytes, indexbytes, unichr, PY3, next
 from six.moves import zip, zip_longest
 
 
-def index1byte(bytearr, i):
+def bytes2unic(bytearr):
+    return ''.join(unichr(x) for x in iterbytes(bytearr))
+
+
+def index_one_byte(bytearr, i):
     return int2byte(indexbytes(bytearr, i))
+
+
+def iter_wrapper(iterated):
+    """Returns bytes if iterating bytes, and iterates normally otherwise"""
+    iterator = iter(iterated)
+    if PY3 and isinstance(iterated, binary_type):
+        while True:
+            try:
+                yield int2byte(next(iterator))
+            except StopIteration:
+                return
+    else:
+        while True:
+            try:
+                yield next(iterator)
+            except StopIteration:
+                return
 
 
 def xor(a, b):

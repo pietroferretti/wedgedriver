@@ -34,6 +34,8 @@ setuptools.setup(
         "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
+        "Topic :: Security",
+        "Topic :: Security :: Cryptography"
     ],
     keywords="ctf security cryptography",
     project_urls={

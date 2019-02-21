@@ -28,8 +28,11 @@ from ctftools.utils import xor
 
 import pytest
 import random
+import base64
+from itertools import cycle
+from .rfc8032 import point_add, point_compress, point_mul, G
 
-from six import int2byte, binary_type, indexbytes, b
+from six import int2byte, binary_type, indexbytes, iterbytes, b
 from six.moves import range
 
 
@@ -57,35 +60,24 @@ def random_bytes(n):
 @pytest.mark.parametrize('seed', range(10))
 def test_xor_find_key_with_known_length(seed):
     random.seed(seed)
-
-    # choose a random length
     keylen = random.randrange(5, 20)
-    # choose a random key
     key = random_bytes(keylen)
     for text in PLAINTEXTS:
         plaintext = b(text)
-        repeats = len(plaintext) // keylen + 1
-        # encrypt with xor
-        ciphertext = xor(plaintext, key * repeats)
-        # decrypt
+        ciphertext = xor(plaintext, cycle(key))
         my_key = xortools.findkey(ciphertext, keylen=keylen, decfunc=xor)
-        my_plain = xor(ciphertext, my_key * repeats)
+        my_plain = xor(ciphertext, cycle(my_key))
         assert plaintext == my_plain
 
 
 @pytest.mark.parametrize('seed', range(10))
 def test_xor_find_key_length(seed):
     random.seed(seed)
-    # choose a random length
     keylen = random.randrange(5, 20)
-    # choose a random key
     key = random_bytes(keylen)
     for text in PLAINTEXTS:
         plaintext = b(text)
-        repeats = len(plaintext) // keylen + 1
-        # encrypt with xor
-        ciphertext = xor(plaintext, key * repeats)
-        # find key length
+        ciphertext = xor(plaintext, cycle(key))
         my_length = xortools.findkeylen(ciphertext, maxcompperlen=1000)
         assert keylen == my_length
 
@@ -93,32 +85,23 @@ def test_xor_find_key_length(seed):
 @pytest.mark.parametrize('seed', range(10, 20))
 def test_xor_find_key(seed):
     random.seed(seed)
-    # choose a random length
     keylen = random.randrange(5, 20)
-    # choose a random key
     key = random_bytes(keylen)
     for text in PLAINTEXTS:
         plaintext = b(text)
-        repeats = len(plaintext) // keylen + 1
-        # encrypt with xor
-        ciphertext = xor(plaintext, key * repeats)
-        # decrypt
+        ciphertext = xor(plaintext, cycle(key))
         my_key = xortools.findkey(ciphertext, decfunc=xor)
-        my_plain = xor(ciphertext, my_key * repeats)
+        my_plain = xor(ciphertext, cycle(my_key))
         assert plaintext == my_plain
 
 
 @pytest.mark.parametrize('seed', range(10))
 def test_xor_key_in_plaintext(seed):
     random.seed(seed)
-    # choose a random length
     keylen = random.randrange(5, 20)
-    # choose a random key
     key = random_bytes(keylen)
     for text in PLAINTEXTS:
         plaintext = b(text)
-        repeats = len(plaintext) // keylen + 1
-        # choose a random offset
         offset = random.randrange(0, len(text) - keylen)
         while egcd(keylen, offset)[0] != 1:
             offset = random.randrange(0, len(text) - keylen)
@@ -127,14 +110,46 @@ def test_xor_key_in_plaintext(seed):
         # get a single byte from the plaintext
         seed_index = random.randrange(0, len(text))
         seed = int2byte(indexbytes(newtext, seed_index))
-        # encrypt with xor
-        ciphertext = xor(newtext, key * repeats)
-        # decrypt
+        ciphertext = xor(newtext, cycle(key))
         my_key = xortools.keyinplaintext(ciphertext, keylen, offset, seed, seed_index)
         assert key == my_key
 
 
+def ecxor_topoint(n):
+    return point_mul(n, G)
 
-# TODO
-# some other polyalphabetic substitution cipher, for find_key
+
+def ecxor_encrypt(ptxt, key):
+    points = [point_add(ecxor_topoint(x), ecxor_topoint(y)) for (x,y) in zip(cycle(iterbytes(key)), iterbytes(ptxt))]
+    return b(';').join(base64.b64encode(point_compress(p)) for p in points)
+
+
+# lookup table to invert the encryption function
+dec_table = {}
+for plain_i in range(256):
+    plain_char = int2byte(plain_i)
+    for key_i in range(256):
+        key_char = int2byte(key_i)
+        cipher_char = ecxor_encrypt(plain_char, key_char)
+        if cipher_char not in dec_table:
+            dec_table[(cipher_char, key_char)] = plain_char
+
+
+def ecxor_decrypt(ciphertext, key):
+    return binary_type().join(dec_table.get((c, int2byte(k)), b('\xff')) for c, k in zip(ciphertext, iterbytes(key)))
+
+
+@pytest.mark.parametrize('seed', range(3))
+def test_polyalphabetic_substitution(seed):
+    """Based on the ECXOR challenge from CSAW CTF 2017"""
+    random.seed(seed)
+    keylen = random.randrange(5, 20)
+    key = random_bytes(keylen)
+    for text in PLAINTEXTS:
+        plaintext = b(text)
+        ciphertext = ecxor_encrypt(plaintext, key)
+        ct_as_list = ciphertext.split(b(';'))   # needs to be an iterator of the ciphertext "characters"
+        my_key = xortools.findkey(ct_as_list, keylen=keylen, decfunc=ecxor_decrypt)
+        assert key == my_key
+
 

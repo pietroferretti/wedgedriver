@@ -1,11 +1,10 @@
 TODO:
 - change name to xortools: they actually work on all polyalphabetic ciphers
 - xortools function that works on a list of strings
-- xortools function that takes a string we know exists in the plaintext to simplify things
-- findkey, but keep a number of candidates (2 per char?) and look for english words
-- tests for xortools
+- xortools function that takes a string we know exists in the plaintext to simplify things (e.g. 'flag{')
+- xortools: find decfunc given an encryption function, by building a simple key x plain lookup table (assume plain is bytes)
 - rsatools
 - coveralls integration
 - documentation!
 
-- riscrivere xortools con compatibilità 2/3 ha rovinato la parte buona: non possiamo fare indexing di liste generiche. va proprio rifatto il design da capo!
+- forse riscrivere xortools con compatibilità 2/3 ha rovinato la parte buona, possiamo fare indexing di liste generiche? va proprio rifatto il design da capo
