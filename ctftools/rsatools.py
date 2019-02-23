@@ -26,9 +26,13 @@
 # low private exponent: wiener attack
 # low public exponent: coppersmith theorem, hastad's broadcast attack, related messages
 
-import gmpy2
+from pkgutil import iter_modules
 from six import iterbytes, binary_type, int2byte
 from .utils import egcd
+
+
+def module_exists(module_name):
+    return module_name in (name for loader, name, ispkg in iter_modules())
 
 
 def phi(p, q):
@@ -46,11 +50,14 @@ def modinv(a, m):
 
 def compute_root(n, r, precision=300):
     """Compute the r-th root of n"""
-    gmpy2.get_context().precision = precision
-    m = gmpy2.mpz(n)
-    root, exact = gmpy2.iroot(m, r)
+    if not module_exists('gmpy'):
+        raise ImportError("`compute_root` needs the gmpy module to work!")
+    import gmpy
+    gmpy.set_minprec(precision)
+    m = gmpy.mpz(n)
+    root, exact = gmpy.root(m, r)
     if not exact:
-        raise ValueError("The root is not exact, maybe try increasing the precision?")
+        raise ValueError("No exact root found, maybe try increasing the precision?")
     return int(root)
 
 

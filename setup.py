@@ -24,6 +24,7 @@ setuptools.setup(
     package_data={"ctftools": ["data/english_words.txt"]},
     install_requires=requirements,
     extras_require={
+        "rsa": ["gmpy"],
         "tests": ["pytest", "pycryptodome"]
     },
     classifiers=[
