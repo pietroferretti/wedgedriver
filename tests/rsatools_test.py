@@ -28,8 +28,7 @@ from ctftools import rsatools
 import pytest
 import random
 from Crypto.PublicKey import RSA
-
-from six import binary_type, int2byte
+from six import binary_type, int2byte, b
 
 
 def random_bytes(n):
@@ -48,7 +47,7 @@ def test_rsa_encrypt_decrypt(seed):
     length = random.randrange(10, 255)
     plaintext = random_bytes(length)
     ciphertext = rsatools.rsa_encrypt(plaintext, e, n)
-    assert rsatools.rsa_decrypt(ciphertext, d, n) == plaintext
+    assert rsatools.rsa_decrypt(ciphertext, d, n).rjust(length, int2byte(0)) == plaintext
 
 
 @pytest.mark.parametrize('seed', range(10))
@@ -59,7 +58,7 @@ def test_rsa_known_factors(seed):
     plaintext = random_bytes(length)
     ciphertext = rsatools.rsa_encrypt(plaintext, e, n)
     d = rsatools.rsa_find_private_from_factors(p, q, e)
-    assert rsatools.rsa_decrypt(ciphertext, d, n) == plaintext
+    assert rsatools.rsa_decrypt(ciphertext, d, n).rjust(length, int2byte(0)) == plaintext
 
 
 @pytest.mark.parametrize('seed', range(10))
@@ -69,7 +68,7 @@ def test_rsa_decrypt_cubic_root(seed):
     length = random.randrange(10, 80)   # 80 < 256 / 3
     plaintext = random_bytes(length)
     ciphertext = rsatools.rsa_encrypt(plaintext, e, n)
-    assert rsatools.rsa_decrypt_root(ciphertext, e) == plaintext
+    assert rsatools.rsa_decrypt_root(ciphertext, e).rjust(length, int2byte(0)) == plaintext
 
 
 # TODO test common primes
