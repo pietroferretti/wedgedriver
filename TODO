@@ -2,7 +2,6 @@ TODO:
 - change name to xortools: they actually work on all polyalphabetic ciphers
 - xortools function that works on a list of strings
 - xortools function that takes a string we know exists in the plaintext to simplify things (e.g. 'flag{')
-- xortools: find decfunc given an encryption function, by building a simple key x plain lookup table (assume plain is bytes)
 - rsatools
 - prng: rand(), mersenne twister
 - dsa: recovery of key from repeated nonce

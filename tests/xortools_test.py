@@ -116,29 +116,14 @@ def ecxor_encrypt(ptxt, key):
 
 
 @pytest.fixture(scope="module")
-def ecxor_lookup_table():
-    # lookup table to invert the encryption function
-    dec_table = {}
-    for plain_i in range(256):
-        plain_char = int2byte(plain_i)
-        for key_i in range(256):
-            key_char = int2byte(key_i)
-            cipher_char = ecxor_encrypt(plain_char, key_char)
-            if cipher_char not in dec_table:
-                dec_table[(cipher_char, key_char)] = plain_char
-    return dec_table
+def ecxor_decrypt():
+    # create decryption function using a lookup table
+    return xortools.make_decfunc(ecxor_encrypt)
 
 
 @pytest.mark.parametrize('seed', range(3))
-def test_polyalphabetic_substitution(ecxor_lookup_table, seed):
+def test_polyalphabetic_substitution(ecxor_decrypt, seed):
     """Based on the ECXOR challenge from CSAW CTF 2017"""
-
-    def ecxor_decrypt(ciphertext, key):
-        res = binary_type()
-        for c, k in zip(ciphertext, cycle(iterbytes(key))):
-            res += ecxor_lookup_table.get((c, int2byte(k)), b('\xff'))
-        return res
-
     random.seed(seed)
     keylen = random.randrange(5, 20)
     key = random_bytes(keylen)

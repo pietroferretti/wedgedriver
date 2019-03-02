@@ -23,8 +23,8 @@
 # SOFTWARE.
 
 import itertools
-import pkg_resources
 from itertools import cycle
+import pkg_resources
 
 from six import iterbytes, int2byte, next, binary_type, b, print_
 from six.moves import range, filter
@@ -51,15 +51,6 @@ def hamming_distance(a, b):
         diff = byte1 ^ byte2
         distance += sum((diff >> i) & 1 for i in range(8))
     return distance
-
-
-def egcd(a, b):
-    """Computes the Euclidean Greatest Common Divisor"""
-    if a == 0:
-        return b, 0, 1
-    else:
-        g, y, x = egcd(b % a, a)
-        return g, x - (b // a) * y, y
 
 
 def englishscore(text):
@@ -384,3 +375,24 @@ def keyinplaintext(ciphertext, keylen, keyindex, seed, seedindex, decfunc=xor, k
     assert None not in key
 
     return binary_type().join(key)
+
+
+def make_decfunc(encfunc):
+    """TODO docs and tests"""
+    # generate lookup table
+    lookup_table = {}
+    for plain_i in range(256):
+        plain_char = int2byte(plain_i)
+        for key_i in range(256):
+            key_char = int2byte(key_i)
+            cipher_char = encfunc(plain_char, key_char)
+            if cipher_char not in lookup_table:
+                lookup_table[(cipher_char, key_char)] = plain_char
+
+    def decfunc(ciphertext, key):
+        res = binary_type()
+        for c, k in zip(ciphertext, cycle(iterbytes(key))):
+            res += lookup_table.get((c, int2byte(k)), b('\xff'))
+        return res
+
+    return decfunc
