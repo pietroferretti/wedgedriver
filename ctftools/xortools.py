@@ -313,7 +313,7 @@ def findkeys(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fa
                 break
 
         def candidate_score(key):
-            return dictionary_score(decfunc(ciphertext, cycle(key)))
+            return dictionary_score(decfunc(ciphertext, key))  # FIXME assumes decfunc will cycle the key appropriately
         best_candidates.sort(key=candidate_score)
 
         while best_candidates:

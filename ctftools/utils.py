@@ -24,6 +24,7 @@
 
 from six import binary_type, int2byte, iterbytes, indexbytes, unichr, PY3, next
 from six.moves import zip, zip_longest
+from itertools import cycle
 
 
 def bytes2unic(bytearr):
@@ -51,10 +52,10 @@ def iter_wrapper(iterated):
                 return
 
 
-def xor(a, b):
+def xor(text, key):
     """Applies XOR to two byte arrays, truncated at the length of the shortest argument"""
     res = binary_type()
-    for x, y in zip(iterbytes(a), iterbytes(b)):
+    for x, y in zip(iterbytes(text), cycle(iterbytes(key))):
         res += int2byte(x ^ y)
     return res
 

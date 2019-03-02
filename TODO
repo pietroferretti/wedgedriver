@@ -4,7 +4,9 @@ TODO:
 - xortools function that takes a string we know exists in the plaintext to simplify things (e.g. 'flag{')
 - xortools: find decfunc given an encryption function, by building a simple key x plain lookup table (assume plain is bytes)
 - rsatools
-- coveralls integration
+- prng: rand(), mersenne twister
+- dsa: recovery of key from repeated nonce
+- elgamal? paillier? diffie-hellman?
 - documentation!
+- replace "verbose" with actual logging
 
-- forse riscrivere xortools con compatibilità 2/3 ha rovinato la parte buona, possiamo fare indexing di liste generiche? va proprio rifatto il design da capo
