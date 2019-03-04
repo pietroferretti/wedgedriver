@@ -8,4 +8,5 @@ TODO:
 - elgamal? paillier? diffie-hellman?
 - documentation!
 - binary search, blind sql injection, time-based sql injection
+- improve xortools performance
 

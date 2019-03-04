@@ -22,6 +22,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import binascii
 from six import int2byte, binary_type, indexbytes
 from six.moves import range
 
@@ -125,7 +126,7 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16):
             plainblock = int2byte(good_guess) + plainblock
 
             LOGGER.info('Block {}, index {}'.format(len(plaintext) // blocklen, i))
-            LOGGER.info(plainblock.encode('hex'))
+            LOGGER.info(binascii.hexlify(plainblock))
 
         # update plaintext
         plaintext = plainblock + plaintext

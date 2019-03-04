@@ -125,12 +125,12 @@ def rsa_find_common_primes(moduli):
         n = moduli.pop()
         for m in moduli:
             # try all combinations at least once, without breaking
-            g, _, _ = egcd(n, m)
-            if g != 1:
+            p, _, _ = egcd(n, m)
+            if p != 1:
                 if n not in res:
-                    res[n] = (g, n/g)
+                    res[n] = (p, n/p)
                 if m not in res:
-                    res[m] = (g, m/g)
+                    res[m] = (p, m/p)
         if n not in res:
             res[n] = (n, 1)
     return res
