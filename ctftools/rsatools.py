@@ -28,6 +28,7 @@
 
 from pkgutil import iter_modules
 from six import iterbytes, binary_type, int2byte
+
 from .utils import egcd
 
 

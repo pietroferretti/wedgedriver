@@ -9,3 +9,11 @@ All the tools are licensed under the MIT License.
 ```
 pip install ctftools
 ```
+
+## Usage
+**TODO**
+
+In the meantime, check the tests to see some examples.
+
+As of now, the tools offer attacks on most polyalphabetic substitution ciphers, some classic attacks on AES, some simple scripts to handle RSA.
+

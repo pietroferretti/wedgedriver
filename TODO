@@ -7,5 +7,5 @@ TODO:
 - dsa: recovery of key from repeated nonce
 - elgamal? paillier? diffie-hellman?
 - documentation!
-- replace "verbose" with actual logging
+- binary search, blind sql injection, time-based sql injection
 

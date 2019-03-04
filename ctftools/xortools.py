@@ -23,12 +23,14 @@
 # SOFTWARE.
 
 import itertools
-from itertools import cycle
 import pkg_resources
-
-from six import iterbytes, int2byte, next, binary_type, b, print_
+from itertools import cycle
+from six import iterbytes, int2byte, next, binary_type, b
 from six.moves import range, filter
+
 from .utils import xor, egcd, blockify, columnify, index_one_byte, bytes2unic, iter_wrapper
+from .loggers import LOGGER
+
 
 LETTERS = b('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')
 DIGITS = b('0123456789')
@@ -131,7 +133,7 @@ def dictionary_score(text):
     return score
 
 
-def findkeylen_all(ciphertext, maxcompperlen=1000000, verbose=False):
+def findkeylen_all(ciphertext, maxcompperlen=1000000):
     """Determines the length of a repeated xor key given a ciphertext.
 
     The algorithm works using the Normalized Hamming Distance.
@@ -139,7 +141,6 @@ def findkeylen_all(ciphertext, maxcompperlen=1000000, verbose=False):
     Arguments:
         ciphertext    -- the ciphertext as a byte array
         maxcompperlen -- the maximum number of comparisons between blocks that will be performed for each candidate length
-        verbose       -- print debug information if True
 
     Returns all the possible key lengths and their respective score as a list of (length, score) tuples.
     The list is ordered from the best to the worst score (lower is better).
@@ -149,8 +150,7 @@ def findkeylen_all(ciphertext, maxcompperlen=1000000, verbose=False):
 
     # try every useful length
     for keylen in range(1, len(ciphertext) // 2 + 1):
-        if verbose:
-            print_('Checking key length {}'.format(keylen))
+        LOGGER.info('Checking key length {}'.format(keylen))
 
         # split in blocks
         blocks = blockify(ciphertext, keylen)
@@ -177,7 +177,7 @@ def findkeylen_all(ciphertext, maxcompperlen=1000000, verbose=False):
     return result
 
 
-def findkeylen(ciphertext, topn=17, maxcompperlen=100, verbose=False):
+def findkeylen(ciphertext, topn=17, maxcompperlen=100):
     """Determines the length of a repeated xor key given a ciphertext.
 
     Takes the greatest common divisor of the most probable candidates, because multiples of the actual key length often get better scores.
@@ -188,18 +188,15 @@ def findkeylen(ciphertext, topn=17, maxcompperlen=100, verbose=False):
         ciphertext    -- the ciphertext as a byte array
         topn          -- the number of candidate lengths to consider in the gcd step
         maxcompperlen -- the maximum number of comparisons between blocks that will be performed for each candidate length
-        verbose       -- print debug information if True
 
     Returns the most probable key length.
     """
 
-    if verbose:
-        print_('Collecting key length candidates...')
-    len_score_list = findkeylen_all(ciphertext, maxcompperlen=maxcompperlen, verbose=verbose)
+    LOGGER.info('Collecting key length candidates...')
+    len_score_list = findkeylen_all(ciphertext, maxcompperlen=maxcompperlen)
     topn_lengths = [t[0] for t in len_score_list[:topn]]
 
-    if verbose:
-        print_('Computing most common gcd...')
+    LOGGER.info('Computing most common gcd...')
     gcd_occurences = {}
     for len1, len2 in itertools.combinations(topn_lengths, 2):
         gcd = egcd(len1, len2)[0]
@@ -213,7 +210,7 @@ def findkeylen(ciphertext, topn=17, maxcompperlen=100, verbose=False):
     return max(gcd_occurences.keys(), key=(lambda k: gcd_occurences[k]))
 
 
-def findkeychars(ciphertext, keylen, charset=PRINTABLE, decfunc=xor, verbose=False):
+def findkeychars(ciphertext, keylen, charset=PRINTABLE, decfunc=xor):
     """Finds all possible characters for each key index given a set of characters that can appear in the plaintext.
 
     This function assumes a polyalphabetic substition cipher is used.
@@ -223,19 +220,16 @@ def findkeychars(ciphertext, keylen, charset=PRINTABLE, decfunc=xor, verbose=Fal
         charset    -- a string containing all the characters that can be found in the plaintext (default: all printable characters)
         keylen     -- the length of the key (default: found using findkeylen)
         decfunc    -- a function that takes a character of ciphertext and a character of key and returns a character of plaintext (default: xor)
-        verbose    -- print debug information if True (default: False)
     Returns a list of lists of characters, one list for each key index.
     """
 
     columns = columnify(ciphertext, keylen)
 
-    if verbose:
-        print_('Finding acceptable character sets...')
+    LOGGER.info('Finding acceptable character sets...')
     result = []
     i = 1
     for column in columns:
-        if verbose:
-            print_('Checking column ' + str(i))
+        LOGGER.info('Checking column ' + str(i))
         # list of acceptable values for this key index
         good_chars = [int2byte(x) for x in range(256)]
         for elem in iter_wrapper(column):
@@ -245,25 +239,22 @@ def findkeychars(ciphertext, keylen, charset=PRINTABLE, decfunc=xor, verbose=Fal
             good_chars = filter((lambda e: e in ok_set), good_chars)
 
         # order good_chars by closeness to the english character distribution
-        if verbose:
-            print_('Sorting characters by score...')
+        LOGGER.info('Sorting characters by score...')
 
         def fitnessfunc(k):
             dec = binary_type().join(decfunc([elem], k) for elem in iter_wrapper(column))
             return englishscore(dec)
         best_char = sorted(good_chars, key=fitnessfunc)[::-1]
 
-        if verbose:
-            print_(best_char)
+        LOGGER.info(best_char)
         result.append(best_char)
         i += 1
 
-    if verbose:
-        print_('Done finding acceptable key characters.')
+    LOGGER.info('Done finding acceptable key characters.')
     return result
 
 
-def findkeys(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=False):
+def findkeys(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor):
     """Finds all possible keys given a set of characters that can appear in the ciphertext.
 
     This function assumes a substition cipher is used. (char by char)
@@ -273,19 +264,16 @@ def findkeys(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fa
         charset    -- a string containing all the characters that can be found in the plaintext (default: all printable characters)
         keylen     -- the length of the key (default: found using findkeylen)
         decfunc    -- a function that takes a character of ciphertext and a character of key and returns a character of plaintext (default: xor)
-        verbose    -- print debug information if True (default: False)
 
     Returns a generator that yields keys as strings.
     """
 
     if keylen is None:
-        if verbose:
-            print_('Finding key length...')
-        keylen = findkeylen(ciphertext, verbose=verbose)
-        if verbose:
-            print_('Key length = {}'.format(keylen))
+        LOGGER.info('Finding key length...')
+        keylen = findkeylen(ciphertext)
+        LOGGER.info('Key length = {}'.format(keylen))
 
-    char_list = findkeychars(ciphertext, keylen, charset, decfunc, verbose)
+    char_list = findkeychars(ciphertext, keylen, charset, decfunc)
 
     def key_generator(iter_prod):
         while True:
@@ -304,7 +292,7 @@ def findkeys(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fa
                 break
 
         def candidate_score(key):
-            return dictionary_score(decfunc(ciphertext, key))  # FIXME assumes decfunc will cycle the key appropriately
+            return dictionary_score(decfunc(ciphertext, key))
         best_candidates.sort(key=candidate_score)
 
         while best_candidates:
@@ -322,16 +310,14 @@ def findkeys(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=Fa
     return generator_wrapper(key_generator(itertools.product(*char_list)))
 
 
-def findkey(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor, verbose=False):
+def findkey(ciphertext, keylen=None, charset=PRINTABLE, decfunc=xor):
     """A wrapper to get the first, most probable key from findkeys()"""
     try:
-        result = next(findkeys(ciphertext, keylen, charset, decfunc, verbose))
-        if verbose:
-            print_('Key: {}'.format(result))
+        result = next(findkeys(ciphertext, keylen, charset, decfunc))
+        LOGGER.info('Key: {}'.format(result))
     except StopIteration:
         result = None
-        if verbose:
-            print_("No key found!")
+        LOGGER.info("No key found!")
     return result
 
 

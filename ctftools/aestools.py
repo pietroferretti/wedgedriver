@@ -23,10 +23,10 @@
 # SOFTWARE.
 
 from six import int2byte, binary_type, indexbytes
-from six import print_
 from six.moves import range
 
 from .utils import xor, blockify
+from .loggers import LOGGER
 
 
 def cbc_flipiv(oldplain, newplain, iv):
@@ -61,7 +61,7 @@ def cbc_findiv(decfunc, blocklen=16, ciphblock=None):
     return iv
 
 
-def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
+def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16):
     """An implementation of the padding oracle attack against AES CBC.
 
     NB: The algorithm assumes PKCS#7 padding.
@@ -70,7 +70,6 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
         ciphertext -- the complete ciphertext, IV included
         oraclefunc -- a padding oracle function. The function must take a ciphertext as a string and return True if the padding is correct, False otherwise
         blocklen   -- the AES block length (default: 16)
-        verbose    -- print debug information if True (default: False)
 
     Returns the decrypted plaintext.
     """
@@ -125,16 +124,14 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
             # update known plaintext
             plainblock = int2byte(good_guess) + plainblock
 
-            if verbose:
-                print_('Block {}, index {}'.format(len(plaintext) // blocklen, i))
-                print_(plainblock.encode('hex'))
+            LOGGER.info('Block {}, index {}'.format(len(plaintext) // blocklen, i))
+            LOGGER.info(plainblock.encode('hex'))
 
         # update plaintext
         plaintext = plainblock + plaintext
 
-        if verbose:
-            print_('Result so far:')
-            print_(plaintext)
+        LOGGER.info('Result so far:')
+        LOGGER.info(plaintext)
 
         # remove last block and repeat
         ciphertext = ciphertext[:-blocklen]
@@ -142,7 +139,7 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16, verbose=False):
     return plaintext
 
 
-def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16, verbose=False):
+def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16):
     """An implementation of the chosen prefix attack against AES ECB.
 
     This attack assumes that the attacker can insert an arbitrary string in the plaintext, and has access to an oracle encryption function which can provide the corresponding ciphertext.
@@ -152,7 +149,6 @@ def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16, verbose=False):
         encfunc     -- an encryption oracle function. It must take as argument the prefix (as a string), and return the ciphertext corresponding to the plaintext with the prefix inserted
         prefixindex -- position where the prefix will be inserted in the ciphertext (default: 0)
         blocklen    -- the AES block length (default: 16)
-        verbose     -- print debug information if True (default: False)
 
     Returns the decrypted plaintext (the part after prefixindex).
     """
@@ -191,16 +187,14 @@ def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16, verbose=False):
         if (len(plaintext) - 1) != i:
             # if it didn't we probably hit the padding at the end and we should stop
             if prefixblock == len(ciphertext) / blocklen - 1 and indexbytes(plaintext, -1) == 0x01:
-                if verbose:
-                    print_("Padding hit, we're done.")
+                LOGGER.info("Padding hit, we're done.")
                 plaintext = plaintext[:-1]
                 break
             else:
                 raise AssertionError('Something went wrong.')
 
-        if verbose:
-            print_('Block {}, index {}'.format(prefixblock, indexinblock + i))
-            print_(plaintext)
+        LOGGER.info('Block {}, index {}'.format(prefixblock, indexinblock + i))
+        LOGGER.info(plaintext)
 
     # Part 2: following blocks
 
@@ -228,15 +222,13 @@ def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16, verbose=False):
             if (len(plaintext) + prefixindex - 1) % blocklen != i:
                 # if it didn't we probably hit the padding at the end and we should stop
                 if blockindex == len(ciphertext) / blocklen - 1 and indexbytes(plaintext, -1) == 0x01:
-                    if verbose:
-                        print_("Padding hit, we're done.")
+                    LOGGER.info("Padding hit, we're done.")
                     plaintext = plaintext[:-1]
                     break
                 else:
                     raise AssertionError('Something went wrong.')
 
-            if verbose:
-                print_('Block {}, index {}'.format(blockindex, i))
-                print_(plaintext)
+            LOGGER.info('Block {}, index {}'.format(blockindex, i))
+            LOGGER.info(plaintext)
 
     return plaintext
