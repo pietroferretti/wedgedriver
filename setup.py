@@ -11,24 +11,24 @@ with open(path.join(here, "requirements.txt"), encoding="utf-8") as f:
     requirements = f.read().strip().split('\n')
 
 setuptools.setup(
-    name="ctftools",
+    name="wedgedriver",
     version="0.1.2",
     author="Pietro Ferretti",
-    author_email="me@pietroferretti.com",
-    description="A small collection of tools for solving CTF challenges",
+    author_email="pietro.ferretti1@gmail.com",
+    description="A collection of tools to break common cryptography weaknesses",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/pietroferretti/ctftools",
+    url="https://github.com/pietroferretti/wedgedriver",
     license="MIT",
     packages=setuptools.find_packages(exclude=["tests", "data"]),
-    package_data={"ctftools": ["data/english_words.txt"]},
+    package_data={"wedgedriver": ["data/english_words.txt"]},
     install_requires=requirements,
     extras_require={
         "rsa": ["gmpy"],
         "tests": ["pytest", "pycryptodome"]
     },
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 3 - Alpha",
         "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
@@ -43,6 +43,6 @@ setuptools.setup(
     ],
     keywords="ctf security cryptography",
     project_urls={
-        "Source": "https://github.com/pietroferretti/ctftools"
+        "Source": "https://github.com/pietroferretti/wedgedriver"
     },
 )

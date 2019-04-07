@@ -4,6 +4,8 @@ TODO:
 - xortools function that takes a string we know exists in the plaintext to simplify things (e.g. 'flag{')
 - rsatools
 - prng: rand(), mersenne twister
+rand() -> C e java
+mersenne twister -> python, e aggiungere resilienza a output mancati (check di quanti ne mancano, trovare dove mancano, risoluzione SAT o qualcosa per output mancanti? prima casi semplici, es. ne manca uno)
 - dsa: recovery of key from repeated nonce
 - elgamal? paillier? diffie-hellman?
 - documentation!

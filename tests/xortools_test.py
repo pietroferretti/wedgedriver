@@ -23,8 +23,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from ctftools import xortools
-from ctftools.utils import xor, egcd
+from wedgedriver import xortools
+from wedgedriver.utils import xor, egcd
 
 import pytest
 import random
