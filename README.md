@@ -1,4 +1,4 @@
-# wedgedriver [![Build Status](https://travis-ci.org/pietroferretti/ctftools.svg?branch=master)](https://travis-ci.org/pietroferretti/ctftools) [![Coverage Status](https://coveralls.io/repos/github/pietroferretti/ctftools/badge.svg?branch=master)](https://coveralls.io/github/pietroferretti/ctftools?branch=master) [![pypi](https://img.shields.io/pypi/v/wedgedriver.svg?style=flat)](https://pypi.org/project/wedgedriver/) ![Python versions](https://img.shields.io/pypi/pyversions/wedgedriver.svg?style=flat)
+# wedgedriver [![Build Status](https://travis-ci.org/pietroferretti/wedgedriver.svg?branch=master)](https://travis-ci.org/pietroferretti/wedgedriver) [![Coverage Status](https://coveralls.io/repos/github/pietroferretti/wedgedriver/badge.svg?branch=master)](https://coveralls.io/github/pietroferretti/wedgedriver?branch=master) [![pypi](https://img.shields.io/pypi/v/wedgedriver.svg?style=flat)](https://pypi.org/project/wedgedriver/) ![Python versions](https://img.shields.io/pypi/pyversions/wedgedriver.svg?style=flat)
 
 `wedgedriver` drives wedges in insecure cryptographic schemes.
 
