@@ -24,10 +24,8 @@
 
 import logging
 
-# TODO better format
-logging.basicConfig(level=logging.WARNING)
-LOGGER = logging.getLogger('ctftools')
-
+logging.basicConfig(format='[*] (%(name)s) %(levelname)s: %(message)s', level=logging.WARNING)
+LOGGER = logging.getLogger('wedgedriver')
 
 def set_log_level(level):
     LOGGER.setLevel(level)

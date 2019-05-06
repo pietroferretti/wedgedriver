@@ -150,12 +150,12 @@ def findkeylen_all(ciphertext, maxcompperlen=1000000):
 
     # try every useful length
     for keylen in range(1, len(ciphertext) // 2 + 1):
-        LOGGER.info('Checking key length {}'.format(keylen))
+        LOGGER.debug('Checking key length {}'.format(keylen))
 
         # split in blocks
         blocks = blockify(ciphertext, keylen)
 
-        # keep only full-length blocks 
+        # keep only full-length blocks
         blocks = filter(lambda b: len(b) == keylen, blocks)
 
         # get hamming distance of each block with every other block
@@ -246,7 +246,7 @@ def findkeychars(ciphertext, keylen, charset=PRINTABLE, decfunc=xor):
             return englishscore(dec)
         best_char = sorted(good_chars, key=fitnessfunc)[::-1]
 
-        LOGGER.info(best_char)
+        LOGGER.debug(best_char)
         result.append(best_char)
         i += 1
 

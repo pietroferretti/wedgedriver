@@ -125,14 +125,12 @@ def cbc_paddingoracle(ciphertext, oraclefunc, blocklen=16):
             # update known plaintext
             plainblock = int2byte(good_guess) + plainblock
 
-            LOGGER.info('Block {}, index {}'.format(len(plaintext) // blocklen, i))
-            LOGGER.info(binascii.hexlify(plainblock))
+            LOGGER.debug('Block {}, index {}: {}'.format(len(plaintext) // blocklen, i, binascii.hexlify(plainblock)))
 
         # update plaintext
         plaintext = plainblock + plaintext
 
-        LOGGER.info('Result so far:')
-        LOGGER.info(plaintext)
+        LOGGER.info('Result so far: {}'.format(plaintext))
 
         # remove last block and repeat
         ciphertext = ciphertext[:-blocklen]
@@ -188,14 +186,13 @@ def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16):
         if (len(plaintext) - 1) != i:
             # if it didn't we probably hit the padding at the end and we should stop
             if prefixblock == len(ciphertext) / blocklen - 1 and indexbytes(plaintext, -1) == 0x01:
-                LOGGER.info("Padding hit, we're done.")
+                LOGGER.debug("Padding hit, we're done.")
                 plaintext = plaintext[:-1]
                 break
             else:
                 raise AssertionError('Something went wrong.')
 
-        LOGGER.info('Block {}, index {}'.format(prefixblock, indexinblock + i))
-        LOGGER.info(plaintext)
+        LOGGER.info('Block {}, index {}: {}'.format(prefixblock, indexinblock + i, plaintext))
 
     # Part 2: following blocks
 
@@ -223,13 +220,12 @@ def ecb_chosenprefix(encfunc, prefixindex=0, blocklen=16):
             if (len(plaintext) + prefixindex - 1) % blocklen != i:
                 # if it didn't we probably hit the padding at the end and we should stop
                 if blockindex == len(ciphertext) / blocklen - 1 and indexbytes(plaintext, -1) == 0x01:
-                    LOGGER.info("Padding hit, we're done.")
+                    LOGGER.debug("Padding hit, we're done.")
                     plaintext = plaintext[:-1]
                     break
                 else:
                     raise AssertionError('Something went wrong.')
 
-            LOGGER.info('Block {}, index {}'.format(blockindex, i))
-            LOGGER.info(plaintext)
+            LOGGER.info('Block {}, index {}: {}'.format(blockindex, i, plaintext))
 
     return plaintext
